@@ -16,31 +16,33 @@ export const authOptions: NextAuthOptions = {
         remember: { label: 'Lembrar', type: 'checkbox' }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
-
-        if (!user || !user.password) {
-          return null;
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) {
-          return null;
-        }
-
-        // Retorna o objeto do usuário (excluindo a senha)
-        return {
-          id: user.id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
+      if (!credentials?.email || !credentials?.password) {
+        return null;
       }
+
+      const email = credentials.email.trim().toLowerCase();
+
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user?.password) {
+        return null;
+      }
+
+      const isValid = await bcrypt.compare(credentials.password, user.password);
+
+      if (!isValid) {
+        return null;
+      }
+
+      return {
+        id: user.id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      };
+    }
     })
   ],
   callbacks: {

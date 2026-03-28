@@ -65,10 +65,10 @@ export default function LoginPage() {
 
     // Chama o signIn do NextAuth
     const result = await signIn('credentials', {
-      email,
+      email: email.trim().toLowerCase(),
       password,
       remember: remember ? 'true' : 'false',
-      redirect: false, // vamos controlar o redirecionamento manualmente
+      redirect: false,
     });
 
     setLoading(false);
