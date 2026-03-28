@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  password  String?
+  role      Role     @default(COLLABORATOR)
+  projects  ProjectMember[]
+  tasks     Task[]            // tarefas atribuídas (assignee) – inferido automaticamente
+  tasksCreated Task[]         @relation("CreatedTasks") // tarefas criadas por este usuário
+  dailies   Daily[]
+  meetings  MeetingParticipant[]
+  taskHistoryChanges TaskHistory[] // histórico de alterações feitas por este usuário
+  notifications Notification[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  COLLABORATOR
+}
+
+model Project {
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String?
+  status      String          @default("active") // active, archived, etc
+  progress    Int             @default(0)
+  members     ProjectMember[]
+  tasks       Task[]
+  meetings    Meeting[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  project   Project  @relation(fields: [projectId], references: [id])
+  projectId Int
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  role      String   @default("member") // manager, member
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  title       String
+  description String?
+  priority    String       @default("medium")
+  status      String       @default("pending")
+  dueDate     DateTime?
+  project     Project?     @relation(fields: [projectId], references: [id])
+  projectId   Int?
+  assignee    User?        @relation(fields: [assigneeId], references: [id])
+  assigneeId  Int?
+  createdBy   User         @relation("CreatedTasks", fields: [createdById], references: [id])
+  createdById Int
+  history     TaskHistory[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model TaskHistory {
+  id         Int      @id @default(autoincrement())
+  task       Task     @relation(fields: [taskId], references: [id])
+  taskId     Int
+  field      String
+  oldValue   String?
+  newValue   String?
+  changedBy  User     @relation(fields: [changedById], references: [id])
+  changedById Int
+  createdAt  DateTime @default(now())
+}
+
+model Daily {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  date      DateTime @default(now())
+  did       String
+  willDo    String
+  blockers  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date]) // um daily por usuário por dia
+}
+
+model Meeting {
+  id          Int                   @id @default(autoincrement())
+  title       String
+  description String?
+  date        DateTime
+  duration    Int?
+  participants MeetingParticipant[]
+  project     Project?              @relation(fields: [projectId], references: [id])
+  projectId   Int?
+  agenda      String?
+  minutes     String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+model MeetingParticipant {
+  id        Int      @id @default(autoincrement())
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  meetingId Int
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+
+  @@unique([meetingId, userId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  title     String
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
