@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading); /* agora usa uma família específica */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,72 +49,105 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Cores principais - tema roxo escuro com contraste melhorado */
+  --background: 260 30% 6%;
+  --foreground: 260 15% 92%;
+  --card: 260 30% 10%;
+  --card-foreground: 260 15% 92%;
+  --popover: 260 30% 10%;
+  --popover-foreground: 260 15% 92%;
+  --primary: 260 70% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 260 30% 18%;
+  --secondary-foreground: 260 15% 92%;
+  --muted: 260 30% 18%;
+  --muted-foreground: 260 15% 70%;
+  --accent: 260 70% 60%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 260 30% 22%;
+  --input: 260 30% 22%;
+  --ring: 260 70% 60%;
+  --radius: 0.75rem;
+
+  /* Tipografia profissional */
+  --font-sans: "Inter", "SF Pro Text", "Segoe UI", "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-heading: "Inter", "SF Pro Display", "Segoe UI", "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Mantemos o mesmo tema escuro, mas você pode ajustar se necessário */
+  --background: 260 30% 8%;
+  --foreground: 260 10% 90%;
+  --card: 260 30% 12%;
+  --card-foreground: 260 10% 90%;
+  --popover: 260 30% 12%;
+  --popover-foreground: 260 10% 90%;
+  --primary: 260 70% 65%;
+  --primary-foreground: 260 10% 10%;
+  --secondary: 260 30% 20%;
+  --secondary-foreground: 260 10% 90%;
+  --muted: 260 30% 20%;
+  --muted-foreground: 260 10% 70%;
+  --accent: 260 70% 65%;
+  --accent-foreground: 260 10% 10%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 260 30% 25%;
+  --input: 260 30% 25%;
+  --ring: 260 70% 65%;
+  --sidebar: 260 30% 12%;
+  --sidebar-foreground: 260 10% 90%;
+  --sidebar-primary: 260 70% 65%;
+  --sidebar-primary-foreground: 260 10% 10%;
+  --sidebar-accent: 260 30% 20%;
+  --sidebar-accent-foreground: 260 10% 90%;
+  --sidebar-border: 260 30% 25%;
+  --sidebar-ring: 260 70% 65%;
+}
+
+@layer base {
+  html {
+    @apply font-sans antialiased;
+    /* Ajustes de legibilidade global */
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: linear-gradient(135deg, #0f0718 0%, #1e102e 50%, #2b183f 100%);
+    background-attachment: fixed;
+    @apply text-foreground;
+  }
+  /* Hierarquia de títulos profissional */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    @apply font-semibold tracking-tight;
+    line-height: 1.2; /* Títulos mais compactos e elegantes */
+  }
+  h1 {
+    font-size: 2.5rem;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: 2rem;
+    letter-spacing: -0.015em;
+  }
+  h3 {
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+  h4 {
+    font-size: 1.25rem;
+  }
+  /* Texto de corpo */
+  p, li, span, a, button {
+    line-height: 1.6; /* Melhor legibilidade para blocos de texto */
+  }
+  /* Links e botões primários */
+  a, button {
+    @apply transition-all duration-200;
+  }
 }
 
 @layer base {
@@ -122,9 +155,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
+    /* Gradiente roxo que combina com o login */
+    background: linear-gradient(135deg, #1a0b2e 0%, #2e1a4a 50%, #3c1e5e 100%);
+    background-attachment: fixed;
+    @apply text-foreground;
   }
 }

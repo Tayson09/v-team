@@ -1,10 +1,5 @@
 import { Providers } from './providers';
 import './globals.css';
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
 
 export default function RootLayout({
   children,
@@ -12,14 +7,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-br" className={cn("font-sans", geist.variable)}>
+    <html lang="pt-br">
       <head>
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
         />
       </head>
-      <body>
+      <body className="bg-gradient-to-br from-[#1a0b2e] via-[#2e1a4a] to-[#3c1e5e] text-white">
         <Providers>{children}</Providers>
       </body>
     </html>
