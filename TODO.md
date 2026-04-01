@@ -1,10 +1,19 @@
-# Task: Fix TypeScript dueDate error in TaskDetail
+# Adicionar :any aos callbacks .map()
 
-## Steps to complete:
-- [x] 1. Create v-team/types/task.ts with normalized Task interface (dueDate as string)
-- [x] 2. Update v-team/app/(authenticated)/tarefas/[id]/page.tsx - add transform function and use normalized type
-- [x] 3. Update v-team/app/components/TaskDetail.tsx - import and use normalized Task type
-- [x] 4. Test compilation and complete task
+Status: Em progresso
 
-All steps completed ✅
+## Passos:
+- [x] Analisar arquivos e criar plano
+- [x] 1. Editar v-team/app/(authenticated)/tarefas/page.tsx - adicionar (task: any)
+- [x] 2. Editar v-team/app/(authenticated)/reunioes/page.tsx - adicionar (meeting: any)
+- [x] 3. Editar v-team/app/(authenticated)/relatorios/page.tsx - adicionar 3 :any (item, card, member)
+- [x] 4. Editar v-team/app/(authenticated)/relatorios/[id]/page.tsx - adicionar (card: any)
+- [x] 5. Verificar TS errors e testar páginas
+- [x] Completar task
+
+Arquivos afetados:
+- app/(authenticated)/tarefas/page.tsx
+- app/(authenticated)/reunioes/page.tsx
+- app/(authenticated)/relatorios/page.tsx
+- app/(authenticated)/relatorios/[id]/page.tsx
 
