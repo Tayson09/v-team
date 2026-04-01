@@ -116,7 +116,7 @@ export default async function MemberReportPage({
       </div>
 
       <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
-        {cards.map((card) => (
+{cards.map((card: any) => (
           <div
             key={card.label}
             className="rounded-2xl border border-purple-500/20 bg-gray-900/60 p-5 backdrop-blur-sm"

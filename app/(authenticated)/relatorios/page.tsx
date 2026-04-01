@@ -70,7 +70,7 @@ export default async function ReportsPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {periodLinks.map((item) => (
+{periodLinks.map((item: any) => (
           <Link
             key={item.period}
             href={`/relatorios?period=${item.period}`}
@@ -82,7 +82,7 @@ export default async function ReportsPage({
       </div>
 
       <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-        {metricCards.map((card) => (
+{metricCards.map((card: any) => (
           <div
             key={card.label}
             className="rounded-2xl border border-purple-500/20 bg-gray-900/60 p-5 backdrop-blur-sm"
@@ -116,7 +116,7 @@ export default async function ReportsPage({
               </tr>
             </thead>
             <tbody>
-              {report.members.map((member) => (
+{report.members.map((member: any) => (
                 <tr key={member.user.id} className="border-b border-purple-500/10 text-white/90">
                   <td className="py-3 pr-4">
                     <div className="font-medium text-white">{member.user.name || 'Sem nome'}</div>

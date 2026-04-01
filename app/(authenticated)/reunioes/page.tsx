@@ -84,7 +84,7 @@ export default async function MeetingsPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {meetings.map((meeting) => (
+{meetings.map((meeting: any) => (
             <Link
               key={meeting.id}
               href={`/reunioes/${meeting.id}`}
