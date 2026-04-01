@@ -37,6 +37,7 @@ async function canAccessProject(projectId: number) {
 
 // Criar projeto (admin)
 export async function createProject(formData: FormData) {
+   console.log("createProject chamada");
   await requireAdmin();
 
   const nome = formData.get("nome") as string;

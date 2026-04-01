@@ -4,23 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String?
-  email     String   @unique
-  password  String?
-  role      Role     @default(COLLABORATOR)
-  projects  ProjectMember[]
-  tasks     Task[]            // tarefas atribuídas (assignee) – inferido automaticamente
-  tasksCreated Task[]         @relation("CreatedTasks") // tarefas criadas por este usuário
-  dailies   Daily[]
-  meetings  MeetingParticipant[]
-  taskHistoryChanges TaskHistory[] // histórico de alterações feitas por este usuário
-  notifications Notification[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // A URL foi removida – configure em prisma.config.ts
 }
 
 enum Role {
@@ -28,59 +12,185 @@ enum Role {
   COLLABORATOR
 }
 
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectRole {
+  OWNER
+  MANAGER
+  DEVELOPER
+  VIEWER
+  MEMBER
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DUE
+  TASK_OVERDUE
+  DAILY_REMINDER
+  MEETING_REMINDER
+  SYSTEM
+}
+
+enum JustificationType {
+  DELAY
+  BLOCKER
+  SCOPE_CHANGE
+  OTHER
+}
+
+enum MetricPeriodType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model User {
+  id                 Int                  @id @default(autoincrement())
+  name               String?
+  email              String               @unique
+  password           String?
+  role               Role                 @default(COLLABORATOR)
+
+  projects           ProjectMember[]
+  tasks              Task[]               @relation("AssignedTasks")
+  tasksCreated       Task[]               @relation("CreatedTasks")
+  dailies            Daily[]
+  meetings           MeetingParticipant[]
+  warnings           UserWarning[]
+  taskHistoryChanges TaskHistory[]
+  notifications      Notification[]
+  comments           Comment[]
+
+  timeEntries        TimeEntry[]
+  productivityMetrics ProductivityMetric[]
+  labelsCreated      Label[]
+
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model UserWarning {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  reason    String
+  createdAt DateTime @default(now())
+}
+
 model Project {
-  id          Int             @id @default(autoincrement())
-  name        String
-  description String?
-  status      String          @default("active") // active, archived, etc
-  progress    Int             @default(0)
-  members     ProjectMember[]
-  tasks       Task[]
-  meetings    Meeting[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                  Int                @id @default(autoincrement())
+  name                String
+  description         String?
+  status              String             @default("active")
+  statusEnum          ProjectStatus      @default(ACTIVE)
+  progress            Int                @default(0)
+
+  members             ProjectMember[]
+  tasks               Task[]
+  meetings            Meeting[]
+  labels              Label[]
+  productivityMetrics ProductivityMetric[]
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([status])
+  @@index([statusEnum])
 }
 
 model ProjectMember {
-  id        Int      @id @default(autoincrement())
-  project   Project  @relation(fields: [projectId], references: [id])
+  id        Int         @id @default(autoincrement())
+  project   Project     @relation(fields: [projectId], references: [id])
   projectId Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User        @relation(fields: [userId], references: [id])
   userId    Int
-  role      String   @default("member") // manager, member
-  createdAt DateTime @default(now())
+  role      String      @default("member")
+  roleEnum  ProjectRole @default(MEMBER)
+  createdAt DateTime    @default(now())
 
   @@unique([projectId, userId])
+  @@index([userId])
 }
 
 model Task {
-  id          Int          @id @default(autoincrement())
-  title       String
-  description String?
-  priority    String       @default("medium")
-  status      String       @default("pending")
-  dueDate     DateTime?
-  project     Project?     @relation(fields: [projectId], references: [id])
-  projectId   Int?
-  assignee    User?        @relation(fields: [assigneeId], references: [id])
-  assigneeId  Int?
-  createdBy   User         @relation("CreatedTasks", fields: [createdById], references: [id])
-  createdById Int
-  history     TaskHistory[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                   Int               @id @default(autoincrement())
+  title                String
+  description          String?
+  priority             String            @default("media")
+  priorityEnum         TaskPriority      @default(MEDIUM)
+  status               String            @default("pending")
+  statusEnum           TaskStatus        @default(PENDING)
+  dueDate              DateTime?
+  completedAt          DateTime?
+  justification        String?
+  justificationType    String?
+  justificationTypeEnum JustificationType?
+  estimatedHours       Int?
+  actualHours          Int?
+
+  project              Project           @relation(fields: [projectId], references: [id])
+  projectId            Int
+  assignee             User?             @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  assigneeId           Int?
+  createdBy            User?             @relation("CreatedTasks", fields: [createdById], references: [id])
+  createdById          Int?
+
+  parentTaskId         Int?
+  parentTask           Task?             @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks             Task[]            @relation("TaskSubtasks")
+
+  labels               TaskLabel[]
+  timeEntries          TimeEntry[]
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  history              TaskHistory[]
+  comments             Comment[]
+
+  @@index([projectId, status])
+  @@index([projectId, statusEnum])
+  @@index([assigneeId, status])
+  @@index([assigneeId, statusEnum])
+  @@index([dueDate])
+  @@index([parentTaskId])
 }
 
 model TaskHistory {
-  id         Int      @id @default(autoincrement())
-  task       Task     @relation(fields: [taskId], references: [id])
-  taskId     Int
-  field      String
-  oldValue   String?
-  newValue   String?
-  changedBy  User     @relation(fields: [changedById], references: [id])
-  changedById Int
-  createdAt  DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  task         Task     @relation(fields: [taskId], references: [id])
+  taskId       Int
+  field        String
+  oldValue     String?
+  newValue     String?
+  oldValueJson Json?
+  newValueJson Json?
+  changeReason String?
+  changedBy    User     @relation(fields: [changedById], references: [id])
+  changedById  Int
+  createdAt    DateTime @default(now())
+
+  @@index([taskId, createdAt])
 }
 
 model Daily {
@@ -88,28 +198,33 @@ model Daily {
   user      User     @relation(fields: [userId], references: [id])
   userId    Int
   date      DateTime @default(now())
+  dayKey    String   @db.VarChar(10)
   did       String
   willDo    String
   blockers  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, date]) // um daily por usuário por dia
+  @@unique([userId, dayKey])
+  @@index([userId, date])
 }
 
 model Meeting {
-  id          Int                   @id @default(autoincrement())
-  title       String
-  description String?
-  date        DateTime
-  duration    Int?
+  id           Int                   @id @default(autoincrement())
+  title        String
+  description  String?
+  date         DateTime
+  duration     Int?
   participants MeetingParticipant[]
-  project     Project?              @relation(fields: [projectId], references: [id])
-  projectId   Int?
-  agenda      String?
-  minutes     String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  project      Project?              @relation(fields: [projectId], references: [id])
+  projectId    Int?
+  agenda       String?
+  minutes      String?
+  comments     Comment[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([projectId, date])
 }
 
 model MeetingParticipant {
@@ -120,16 +235,103 @@ model MeetingParticipant {
   userId    Int
 
   @@unique([meetingId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id])
+  meetingId Int?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([taskId])
+  @@index([meetingId])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
+  id        Int              @id @default(autoincrement())
+  user      User              @relation(fields: [userId], references: [id])
   userId    Int
   title     String
   message   String
   type      String
-  read      Boolean  @default(false)
+  typeEnum  NotificationType  @default(SYSTEM)
+  entityType String?
+  entityId  Int?
+  read      Boolean           @default(false)
+  readAt    DateTime?
   link      String?
+  createdAt DateTime          @default(now())
+
+  @@index([userId, read, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Label {
+  id           Int      @id @default(autoincrement())
+  name         String
+  color        String?
+  project      Project  @relation(fields: [projectId], references: [id])
+  projectId    Int
+  createdBy    User?    @relation(fields: [createdById], references: [id])
+  createdById  Int?
+  tasks        TaskLabel[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model TaskLabel {
+  id        Int      @id @default(autoincrement())
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    Int
+  label     Label    @relation(fields: [labelId], references: [id])
+  labelId   Int
   createdAt DateTime @default(now())
+
+  @@unique([taskId, labelId])
+  @@index([labelId])
+}
+
+model TimeEntry {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    Int
+  minutes   Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([taskId, createdAt])
+}
+
+model ProductivityMetric {
+  id               Int               @id @default(autoincrement())
+  userId           Int?
+  user             User?             @relation(fields: [userId], references: [id])
+  projectId        Int?
+  project          Project?          @relation(fields: [projectId], references: [id])
+  period           String
+  periodType       MetricPeriodType   @default(MONTHLY)
+  score            Float              @default(0)
+  completedTasks   Int                @default(0)
+  delayedTasks     Int                @default(0)
+  avgCompletionTime Float?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([userId, period])
+  @@index([projectId, period])
+  @@index([period, periodType])
 }
