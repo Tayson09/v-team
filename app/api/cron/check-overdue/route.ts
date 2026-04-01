@@ -15,16 +15,5 @@ export async function GET() {
     include: { assignee: true },
   });
 
-  for (const task of overdueTasks) {
-    if (task.assignee) {
-      // Desligar usuário
-      await prisma.user.update({
-        where: { id: task.assignee.id },
-        data: { active: false },
-      });
-      // Opcional: enviar notificação
-    }
-  }
-
   return NextResponse.json({ processed: overdueTasks.length });
 }

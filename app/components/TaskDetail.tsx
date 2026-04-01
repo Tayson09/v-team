@@ -3,10 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeTask } from "../actions/tasks";
+
+import type { NormalizedTask } from "../../types/task";
+
 import { ArrowLeft, Calendar, Flag, User } from "lucide-react";
 import Link from "next/link";
 
-export default function TaskDetail({ task, isAdmin, isOwner }) {
+type Task = NormalizedTask;
+
+
+interface TaskDetailProps {
+  task: NormalizedTask;
+  isAdmin: boolean;
+  isOwner: boolean;
+}
+
+
+export default function TaskDetail({ task, isAdmin, isOwner }: TaskDetailProps) {
   const router = useRouter();
   const [justification, setJustification] = useState("");
   const [justificationType, setJustificationType] = useState("plausible");
@@ -20,8 +33,9 @@ export default function TaskDetail({ task, isAdmin, isOwner }) {
     try {
       await completeTask(task.id, justification, justificationType);
       router.push("/tarefas");
-    } catch (error) {
-      alert(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      alert(message);
     } finally {
       setLoading(false);
     }

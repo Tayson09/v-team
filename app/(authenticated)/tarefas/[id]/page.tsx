@@ -3,6 +3,9 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import TaskDetail from "../../../components/TaskDetail";
+import type { NormalizedTask } from "../../../../types/task";
+import { normalizeTask } from "../../../../types/task";
+
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -19,15 +22,23 @@ export default async function TaskDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const task = await prisma.task.findUnique({
+  const rawTask = await prisma.task.findUnique({
     where: { id: taskId },
-    include: { project: true, assignee: true },
+    include: { 
+      project: true, 
+      assignee: true,
+      createdBy: {
+        select: { id: true, name: true, email: true }
+      }
+    },
   });
 
-  if (!task) notFound();
+  if (!rawTask) notFound();
+
+  const task: NormalizedTask = normalizeTask(rawTask);
 
   const isAdmin = (session.user as any).role === "ADMIN";
-  const isOwner = task.assigneeId === Number((session.user as any).id);
+  const isOwner = task.assignee?.id === Number((session.user as any).id);
 
   return <TaskDetail task={task} isAdmin={isAdmin} isOwner={isOwner} />;
 }
