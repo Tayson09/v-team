@@ -199,7 +199,7 @@ export default async function DashboardPage() {
               <p className="text-purple-200/70 text-center py-8">Nenhuma reunião agendada</p>
             ) : (
               <div className="space-y-4">
-                {upcomingMeetings.map((meeting) => (
+{upcomingMeetings.map((meeting: any) => (
                   <div key={meeting.id} className="border-b border-purple-800/30 pb-3 last:border-0">
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
@@ -217,7 +217,7 @@ export default async function DashboardPage() {
                           })}
                         </p>
                         <div className="flex -space-x-1 mt-2">
-                          {meeting.participants.slice(0, 3).map((p) => (
+                          {meeting.participants.slice(0, 3).map((p : any) => (
                             <div
                               key={p.user.id}
                               className="w-6 h-6 rounded-full bg-purple-600/40 border border-purple-800/50 flex items-center justify-center"
@@ -259,7 +259,7 @@ export default async function DashboardPage() {
           <p className="text-purple-200/70 text-center py-8">Nenhuma tarefa registrada</p>
         ) : (
           <div className="space-y-3">
-            {recentTasks.map((task) => (
+{recentTasks.map((task: any) => (
               <div
                 key={task.id}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-purple-800/20 transition-colors"
