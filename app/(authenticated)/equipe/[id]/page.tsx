@@ -107,7 +107,7 @@ export default async function MemberDetailPage({ params }: PageProps) {
 
         {member.projects.length ? (
           <div className="space-y-3">
-            {member.projects.map((item) => (
+            {member.projects.map((item : any) => (
               <Link
                 key={item.project.id}
                 href={`/projetos/${item.project.id}`}
