@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Role, TaskStatus } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 
@@ -16,6 +16,8 @@ export type ReportUser = {
   email: string;
   role: Role;
 };
+
+type NumericInput = number | null | undefined;
 
 export type MemberMetrics = {
   tasksCompleted: number;
@@ -63,7 +65,7 @@ export type TeamReport = {
 type ReportTask = {
   id: number;
   status: string | null;
-  statusEnum: string | null;
+  statusEnum: TaskStatus | null;
   createdAt: Date;
   completedAt: Date | null;
   dueDate: Date | null;
@@ -76,31 +78,31 @@ type ReportTask = {
   }>;
 };
 
-function round(value: number, precision = 2) {
+function toNumber(value: NumericInput, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function round(value: number, precision = 2): number {
   const factor = 10 ** precision;
   return Math.round(value * factor) / factor;
 }
 
-function clamp(value: number, min = 0, max = 100) {
+function clamp(value: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function toNumber(value: number | null | undefined, fallback = 0): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function avg(values: Array<number | null | undefined>) {
-  const filtered = values.filter(
-    (value): value is number => typeof value === 'number' && Number.isFinite(value)
-  );
+function avg(values: ReadonlyArray<NumericInput>): number | null {
+  const filtered: number[] = values
+    .map((value) => toNumber(value))
+    .filter((value) => Number.isFinite(value));
 
   if (!filtered.length) return null;
 
-  return round(filtered.reduce((sum, value) => sum + value, 0) / filtered.length, 2);
+  return round(filtered.reduce((acc, value) => acc + value, 0) / filtered.length, 2);
 }
 
-function sum(values: ReadonlyArray<number | null | undefined>) {
-  return values.reduce((acc, value) => acc + toNumber(value), 0);
+function sum(values: ReadonlyArray<NumericInput>): number {
+  return values.reduce<number>((acc, value) => acc + toNumber(value), 0);
 }
 
 function isInRange(date: Date | null | undefined, range: ReportRange) {
@@ -108,12 +110,12 @@ function isInRange(date: Date | null | undefined, range: ReportRange) {
   return date >= range.startDate && date <= range.endDate;
 }
 
-function isDoneTask(task: { status?: string | null; statusEnum?: string | null }) {
-  return (task.statusEnum ?? task.status ?? '').toString().trim().toUpperCase() === 'DONE';
+function normalizeStatusValue(value?: string | TaskStatus | null) {
+  return (value ?? '').toString().trim().toUpperCase();
 }
 
-function normalizeStatusValue(value?: string | null) {
-  return (value ?? '').trim().toUpperCase();
+function isDoneTask(task: { status?: string | null; statusEnum?: TaskStatus | null }) {
+  return normalizeStatusValue(task.statusEnum ?? task.status) === 'DONE';
 }
 
 function parseInputDate(value?: string | null) {
@@ -201,6 +203,7 @@ function buildMemberMetrics(
   );
 
   const tasksCompleted = completedTasksList.length;
+
   const lateTasks = completedTasksList.filter(
     (task) => task.dueDate && task.completedAt && task.completedAt > task.dueDate
   ).length;
@@ -227,17 +230,11 @@ function buildMemberMetrics(
     })
   );
 
-  const hoursWorked = round(timeEntriesMinutes / 60, 2);
+  const hoursWorked = round(toNumber(timeEntriesMinutes) / 60, 2);
 
-  const estimatedHoursTotal = round(
-    sum(completedTasksList.map((task) => toNumber(task.estimatedHours))),
-    2
-  );
+  const estimatedHoursTotal = round(sum(completedTasksList.map((task) => task.estimatedHours)), 2);
 
-  const actualHoursFromTasks = round(
-    sum(completedTasksList.map((task) => toNumber(task.actualHours))),
-    2
-  );
+  const actualHoursFromTasks = round(sum(completedTasksList.map((task) => task.actualHours)), 2);
 
   const actualHoursTotal = actualHoursFromTasks > 0 ? actualHoursFromTasks : hoursWorked;
 
@@ -257,7 +254,7 @@ function buildMemberMetrics(
     (task) => normalizeStatusValue(task.statusEnum ?? task.status) === 'BLOCKED'
   ).length;
 
-  const historyChanges = scopeTasks.reduce((acc, task) => {
+  const historyChanges = scopeTasks.reduce((acc: number, task) => {
     const changesInRange = task.history.filter(
       (entry) => entry.field !== 'created' && isInRange(entry.createdAt, range)
     ).length;
@@ -265,16 +262,13 @@ function buildMemberMetrics(
     return acc + changesInRange;
   }, 0);
 
-  const dailyConsistency =
-    daysInRange(range) > 0 ? round((dailiesCount / daysInRange(range)) * 100, 2) : 0;
+  const dailyConsistency = daysInRange(range) > 0 ? round((dailiesCount / daysInRange(range)) * 100, 2) : 0;
 
-  const punctualityScore =
-    tasksCompleted > 0 ? clamp(100 - (lateTasks / tasksCompleted) * 100, 0, 100) : 0;
+  const punctualityScore = tasksCompleted > 0 ? clamp(100 - (lateTasks / tasksCompleted) * 100, 0, 100) : 0;
 
   const efficiencyScore = timeEfficiency !== null ? clamp(timeEfficiency, 0, 100) : 50;
 
-  const flowScore =
-    totalScopeTasks > 0 ? clamp(100 - (tasksBlocked / totalScopeTasks) * 100, 0, 100) : 100;
+  const flowScore = totalScopeTasks > 0 ? clamp(100 - (tasksBlocked / totalScopeTasks) * 100, 0, 100) : 100;
 
   const score = round(
     completionRate * 0.25 +
@@ -306,10 +300,7 @@ function buildMemberMetrics(
   };
 }
 
-async function buildMemberReportForUser(
-  user: ReportUser,
-  range: ReportRange
-): Promise<MemberReport> {
+async function buildMemberReportForUser(user: ReportUser, range: ReportRange): Promise<MemberReport> {
   const [assignedTasks, tasksCreated, timeEntries, dailies] = await Promise.all([
     prisma.task.findMany({
       where: {
