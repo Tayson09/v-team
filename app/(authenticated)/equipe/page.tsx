@@ -76,7 +76,7 @@ export default async function TeamPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {members.map((member) => (
+          {members.map((member : any) => (
             <Link
               key={member.id}
               href={`/equipe/${member.id}`}
