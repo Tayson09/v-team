@@ -14,7 +14,7 @@ export default async function NewProjectPage() {
   }
 
   const users = await getAllUsers();
-  const usersFormatted = users.map(user => ({
+  const usersFormatted = users.map((user : any) => ({
     id: user.id,
     nome: user.name,
     email: user.email
