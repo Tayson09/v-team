@@ -47,7 +47,7 @@ export default function TaskCreateForm({
     return projects.find((project) => project.id.toString() === selectedProjectId);
   }, [projects, selectedProjectId]);
 
-  const assignees = selectedProject?.members.map((member) => member.user) ?? [];
+  const assignees = selectedProject?.members.map((member : any) => member.user) ?? [];
 
   useEffect(() => {
     setSelectedAssigneeId("");
@@ -156,7 +156,7 @@ export default function TaskCreateForm({
                 onChange={(e) => setSelectedProjectId(e.target.value)}
                 className="w-full rounded-lg border border-purple-500/30 bg-gray-800 p-3 text-white outline-none transition focus:border-purple-400"
               >
-                {projects.map((project) => (
+                {projects.map((project : any) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
@@ -175,7 +175,7 @@ export default function TaskCreateForm({
                 className="w-full rounded-lg border border-purple-500/30 bg-gray-800 p-3 text-white outline-none transition focus:border-purple-400"
               >
                 <option value="">Sem responsável</option>
-                {assignees.map((user) => (
+                {assignees.map((user : any) => (
                   <option key={user.id} value={user.id}>
                     {user.name || user.email}
                   </option>

@@ -88,7 +88,7 @@ export default async function DashboardPage() {
   }).reverse();
 
   const tasksPerDay = await Promise.all(
-    last7Days.map(async (day) => {
+    last7Days.map(async (day : any) => {
       const nextDay = new Date(day);
       nextDay.setDate(day.getDate() + 1);
       const count = await prisma.task.count({

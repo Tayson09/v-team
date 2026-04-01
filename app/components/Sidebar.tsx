@@ -85,7 +85,7 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
 
           {/* Navegação */}
           <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
-            {filteredItems.map((item) => {
+            {filteredItems.map((item : any) => {
               const isActive = pathname === item.href;
               return (
                 <Link

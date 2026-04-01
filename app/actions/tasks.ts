@@ -356,7 +356,7 @@ async function createHistoryRows(
   if (!params.entries.length) return;
 
   await tx.taskHistory.createMany({
-    data: params.entries.map((entry) => ({
+    data: params.entries.map((entry : any) => ({
       taskId: params.taskId,
       changedById: params.changedById,
       field: entry.field,

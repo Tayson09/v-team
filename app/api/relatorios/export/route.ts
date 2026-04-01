@@ -45,7 +45,7 @@ function memberRow(report: Awaited<ReturnType<typeof buildMemberReport>>) {
 function buildCsv(rows: Array<Record<string, unknown>>) {
   const header = reportColumns.map((column : any) => column.label).join(';');
   const body = rows
-    .map((row) =>
+    .map((row : any) =>
       reportColumns
         .map((column : any) => escapeCsv(row[column.key]))
         .join(';')
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
   }
 
   const report = await buildTeamReport(range);
-  const rows = report.members.map((member) => memberRow({
+  const rows = report.members.map((member : any) => memberRow({
     user: member.user,
     range: member.range,
     metrics: member.metrics,

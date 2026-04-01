@@ -93,7 +93,7 @@ function clamp(value: number, min = 0, max = 100): number {
 
 function avg(values: ReadonlyArray<NumericInput>): number | null {
   const filtered: number[] = values
-    .map((value) => toNumber(value))
+    .map((value : any) => toNumber(value))
     .filter((value) => Number.isFinite(value));
 
   if (!filtered.length) return null;
@@ -213,7 +213,7 @@ function buildMemberMetrics(
   const throughput = round(tasksCompleted / daysInRange(range), 2);
 
   const leadTimeHours = avg(
-    completedTasksList.map((task) =>
+    completedTasksList.map((task : any) =>
       task.completedAt ? ((task.completedAt.getTime() - task.createdAt.getTime()) / DAY_MS) * 24 : null
     )
   );
@@ -232,9 +232,9 @@ function buildMemberMetrics(
 
   const hoursWorked = round(toNumber(timeEntriesMinutes) / 60, 2);
 
-  const estimatedHoursTotal = round(sum(completedTasksList.map((task) => task.estimatedHours)), 2);
+  const estimatedHoursTotal = round(sum(completedTasksList.map((task : any) => task.estimatedHours)), 2);
 
-  const actualHoursFromTasks = round(sum(completedTasksList.map((task) => task.actualHours)), 2);
+  const actualHoursFromTasks = round(sum(completedTasksList.map((task : any) => task.actualHours)), 2);
 
   const actualHoursTotal = actualHoursFromTasks > 0 ? actualHoursFromTasks : hoursWorked;
 
@@ -401,7 +401,7 @@ export async function buildTeamReport(range: ReportRange): Promise<TeamReport> {
     ],
   });
 
-  const members = await Promise.all(users.map((user) => buildMemberReportForUser(user, range)));
+  const members = await Promise.all(users.map((user : any) => buildMemberReportForUser(user, range)));
 
   members.sort((a, b) => {
     if (b.metrics.score !== a.metrics.score) return b.metrics.score - a.metrics.score;
@@ -413,13 +413,13 @@ export async function buildTeamReport(range: ReportRange): Promise<TeamReport> {
 
   const summary: TeamSummary = {
     memberCount: members.length,
-    averageScore: avg(members.map((member) => member.metrics.score)) ?? 0,
-    averageCompletionRate: avg(members.map((member) => member.metrics.completionRate)) ?? 0,
-    averageDailyConsistency: avg(members.map((member) => member.metrics.dailyConsistency)) ?? 0,
-    totalTasksCompleted: sum(members.map((member) => member.metrics.tasksCompleted)),
-    totalTasksCreated: sum(members.map((member) => member.metrics.tasksCreated)),
-    totalLateTasks: sum(members.map((member) => member.metrics.lateTasks)),
-    totalHoursWorked: round(sum(members.map((member) => member.metrics.hoursWorked)), 2),
+    averageScore: avg(members.map((member  : any) => member.metrics.score)) ?? 0,
+    averageCompletionRate: avg(members.map((member : any) => member.metrics.completionRate)) ?? 0,
+    averageDailyConsistency: avg(members.map((member : any) => member.metrics.dailyConsistency)) ?? 0,
+    totalTasksCompleted: sum(members.map((member : any) => member.metrics.tasksCompleted)),
+    totalTasksCreated: sum(members.map((member : any) => member.metrics.tasksCreated)),
+    totalLateTasks: sum(members.map((member : any) => member.metrics.lateTasks)),
+    totalHoursWorked: round(sum(members.map((member : any) => member.metrics.hoursWorked)), 2),
   };
 
   return {

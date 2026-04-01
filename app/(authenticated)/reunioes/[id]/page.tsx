@@ -121,7 +121,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
             <h2 className="text-lg font-semibold text-white">Participantes</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {meeting.participants.length ? (
-                meeting.participants.map((participant) => (
+                meeting.participants.map((participant : any) => (
                   <span
                     key={participant.id}
                     className="rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-sm text-purple-100"
@@ -141,7 +141,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         <h2 className="mb-3 text-lg font-semibold text-white">Comentários</h2>
         {meeting.comments.length ? (
           <div className="space-y-4">
-            {meeting.comments.map((comment) => (
+            {meeting.comments.map((comment : any) => (
               <div key={comment.id} className="rounded-lg border border-purple-500/10 bg-gray-800/70 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-white">

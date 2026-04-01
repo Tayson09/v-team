@@ -92,7 +92,7 @@ export default function ProjectForm({ initialData, action, users }: ProjectFormP
           Membros da Equipe
         </label>
         <div className="space-y-2 max-h-48 overflow-y-auto p-2 border border-purple-500/30 rounded-xl bg-gray-800/30">
-          {users.map((user) => (
+          {users.map((user : any) => (
             <label key={user.id} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"

@@ -178,7 +178,7 @@ async function ensureParticipantsAreProjectMembers(projectId: number, participan
     },
   });
 
-  const memberIds = new Set(members.map((member) => member.userId));
+  const memberIds = new Set(members.map((member : any) => member.userId));
   const invalidIds = uniqueParticipantIds.filter((id) => !memberIds.has(id));
 
   if (invalidIds.length) {
@@ -363,7 +363,7 @@ export async function createMeeting(input: unknown): Promise<ActionResult> {
 
       if (participantIds.length) {
         await tx.meetingParticipant.createMany({
-          data: participantIds.map((userId) => ({
+          data: participantIds.map((userId : any) => ({
             meetingId: meeting.id,
             userId,
           })),
@@ -500,7 +500,7 @@ export async function updateMeeting(input: unknown): Promise<ActionResult> {
 
       if (nextParticipantIds.length) {
         await tx.meetingParticipant.createMany({
-          data: nextParticipantIds.map((userId) => ({
+          data: nextParticipantIds.map((userId : any) => ({
             meetingId: meeting.id,
             userId,
           })),

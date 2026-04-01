@@ -32,7 +32,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
   }
 
   const users = await getAllUsers();
-  const mappedUsers = users.map((user) => ({
+  const mappedUsers = users.map((user : any) => ({
     id: user.id,
     nome: user.name,
     email: user.email,
@@ -43,7 +43,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
     nome: project.name,           // mapeia para o formulário que espera 'nome'
     descricao: project.description,
     status: project.status,
-    membros: project.members.map((m) => m.userId), // ajuste para o nome do campo na tabela de junção
+    membros: project.members.map((m : any) => m.userId), // ajuste para o nome do campo na tabela de junção
   };
 
   const updateWithId = async (formData: FormData) => {

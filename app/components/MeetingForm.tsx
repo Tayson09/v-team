@@ -67,7 +67,7 @@ export default function MeetingForm(props: Props) {
   const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(
     props.mode === 'edit'
-      ? props.meeting.participants.map((p) => String(p.user.id))
+      ? props.meeting.participants.map((p : any) => String(p.user.id))
       : []
   );
 
@@ -75,7 +75,7 @@ export default function MeetingForm(props: Props) {
     return props.projects.find((project) => String(project.id) === selectedProjectId);
   }, [props.projects, selectedProjectId]);
 
-  const availableUsers = selectedProject?.members.map((member) => member.user) ?? [];
+  const availableUsers = selectedProject?.members.map((member : any) => member.user) ?? [];
 
   useEffect(() => {
     setSelectedParticipantIds([]);
@@ -205,7 +205,7 @@ export default function MeetingForm(props: Props) {
                 onChange={(e) => setSelectedProjectId(e.target.value)}
                 className="w-full rounded-lg border border-purple-500/30 bg-gray-800 p-3 text-white outline-none transition focus:border-purple-400"
               >
-                {props.projects.map((project) => (
+                {props.projects.map((project : any) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
@@ -245,12 +245,12 @@ export default function MeetingForm(props: Props) {
                 value={selectedParticipantIds}
                 onChange={(e) =>
                   setSelectedParticipantIds(
-                    Array.from(e.target.selectedOptions).map((option) => option.value)
+                    Array.from(e.target.selectedOptions).map((option : any) => option.value)
                   )
                 }
                 className="min-h-[140px] w-full rounded-lg border border-purple-500/30 bg-gray-800 p-3 text-white outline-none transition focus:border-purple-400"
               >
-                {availableUsers.map((user) => (
+                {availableUsers.map((user : any) => (
                   <option key={user.id} value={user.id}>
                     {user.name || user.email}
                   </option>

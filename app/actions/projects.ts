@@ -52,7 +52,7 @@ export async function createProject(formData: FormData) {
       status,
       progress: 0,
       members: {
-        create: membros.map((usuarioId) => ({ user: { connect: { id: usuarioId } } })),
+        create: membros.map((usuarioId : any) => ({ user: { connect: { id: usuarioId } } })),
       },
     },
   });
@@ -79,7 +79,7 @@ export async function updateProject(id: number, formData: FormData) {
       status,
       members: {
         deleteMany: {},
-        create: membros.map((usuarioId) => ({ user: { connect: { id: usuarioId } } })),
+        create: membros.map((usuarioId : any) => ({ user: { connect: { id: usuarioId } } })),
       },
     },
   });
