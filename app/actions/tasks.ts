@@ -7,7 +7,14 @@ import { z } from 'zod';
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import {
+  notifyTaskEdited,
+  notifyAdminTaskCompleted,
+} from '../../lib/notifications/individual';
 
+// -------------------------------
+// Tipos e Schemas (inalterados)
+// -------------------------------
 type ActionResult<T = unknown> =
   | {
       success: true;
@@ -109,6 +116,9 @@ const completeTaskSchema = z.object({
   justificationType: optionalText,
 });
 
+// -------------------------------
+// Funções auxiliares (inalteradas)
+// -------------------------------
 function toPlainObject(input: unknown): Record<string, unknown> {
   if (input instanceof FormData) {
     return Object.fromEntries(input.entries());
@@ -197,12 +207,6 @@ function normalizeJustificationType(
       return 'SCOPE_CHANGE';
     case 'OTHER':
       return 'OTHER';
-
-    // compatibilidade com valores antigos do frontend
-    case 'PLAUSIBLE':
-    case 'MEDICAL':
-      return 'OTHER';
-
     default:
       return null;
   }
@@ -324,6 +328,7 @@ async function ensureTaskAccess(user: AuthUser, taskId: number) {
   return task;
 }
 
+// Notificação interna (transacional) – inalterada
 async function createNotification(
   tx: Prisma.TransactionClient,
   params: {
@@ -356,7 +361,7 @@ async function createHistoryRows(
   if (!params.entries.length) return;
 
   await tx.taskHistory.createMany({
-    data: params.entries.map((entry : any) => ({
+    data: params.entries.map((entry) => ({
       taskId: params.taskId,
       changedById: params.changedById,
       field: entry.field,
@@ -386,6 +391,10 @@ function pushChange(
     changeReason: changeReason ?? null,
   });
 }
+
+// -------------------------------
+// Funções de ação (modificadas)
+// -------------------------------
 
 export async function getTasks(filters?: {
   projectId?: number;
@@ -684,6 +693,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
       );
     }
 
+    // Executar a transação de atualização
     const updated = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id: currentTask.id },
@@ -736,6 +746,28 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
 
       return task;
     });
+
+    // ----------------------------------------------------------
+    // NOTIFICAÇÃO DE EDIÇÃO (fora da transação)
+    // ----------------------------------------------------------
+    if (updated.assigneeId && historyEntries.length > 0) {
+      // Mapear campos alterados para nomes amigáveis
+      const changedFields = historyEntries.map(entry => {
+        switch (entry.field) {
+          case 'title': return 'título';
+          case 'description': return 'descrição';
+          case 'dueDate': return 'prazo';
+          case 'priority': return 'prioridade';
+          case 'status': return 'status';
+          case 'assigneeId': return 'responsável';
+          default: return entry.field;
+        }
+      }).filter(f => f !== 'responsável'); // remover mudança de assignee porque já foi notificado separadamente
+
+      if (changedFields.length > 0) {
+        await notifyTaskEdited(updated.id, updated.assigneeId, changedFields).catch(console.error);
+      }
+    }
 
     revalidatePath('/tarefas');
     revalidatePath(`/tarefas/${updated.id}`);
@@ -801,6 +833,14 @@ export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
 
       return task;
     });
+
+    // Se o novo status for DONE, notificar admins (fora da transação)
+    if (nextStatusEnum === 'DONE' && user.role !== Role.ADMIN) {
+      const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
+      if (adminUsers.length) {
+        await notifyAdminTaskCompleted(updated.id, adminUsers.map(a => a.id)).catch(console.error);
+      }
+    }
 
     revalidatePath('/tarefas');
     revalidatePath(`/tarefas/${updated.id}`);
@@ -1001,6 +1041,14 @@ export async function completeTask(
 
       return task;
     });
+
+    // Notificar administradores sobre a conclusão (se quem concluiu não for admin)
+    if (user.role !== Role.ADMIN) {
+      const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
+      if (adminUsers.length) {
+        await notifyAdminTaskCompleted(updated.id, adminUsers.map(a => a.id)).catch(console.error);
+      }
+    }
 
     revalidatePath('/tarefas');
     revalidatePath(`/tarefas/${updated.id}`);

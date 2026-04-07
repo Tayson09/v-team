@@ -7,6 +7,11 @@ import { z } from 'zod';
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import {
+  notifyMeetingCreated,
+  notifyMeetingEdited,
+  notifyMeetingDeleted,
+} from '../../lib/notifications/reunioes';
 
 type ActionResult<T = unknown> =
   | {
@@ -178,7 +183,7 @@ async function ensureParticipantsAreProjectMembers(projectId: number, participan
     },
   });
 
-  const memberIds = new Set(members.map((member : any) => member.userId));
+  const memberIds = new Set(members.map((member) => member.userId));
   const invalidIds = uniqueParticipantIds.filter((id) => !memberIds.has(id));
 
   if (invalidIds.length) {
@@ -243,8 +248,6 @@ async function ensureMeetingAccess(user: AuthUser, meetingId: number) {
 
   return meeting;
 }
-
-
 
 async function createMeetingHistory(
   tx: Prisma.TransactionClient,
@@ -345,9 +348,11 @@ export async function createMeeting(input: unknown): Promise<ActionResult> {
 
     await ensureProjectAccess(user, data.projectId);
 
-    const participantIds = uniqueIds(data.participantIds ?? []);
+    let participantIds = uniqueIds(data.participantIds ?? []);
     await ensureParticipantsAreProjectMembers(data.projectId, participantIds);
 
+    // Se nenhum participante foi especificado, notificaremos todos os membros do projeto depois.
+    // Mas primeiro criamos a reunião.
     const created = await prisma.$transaction(async (tx) => {
       const meeting = await tx.meeting.create({
         data: {
@@ -363,7 +368,7 @@ export async function createMeeting(input: unknown): Promise<ActionResult> {
 
       if (participantIds.length) {
         await tx.meetingParticipant.createMany({
-          data: participantIds.map((userId : any) => ({
+          data: participantIds.map((userId) => ({
             meetingId: meeting.id,
             userId,
           })),
@@ -372,6 +377,19 @@ export async function createMeeting(input: unknown): Promise<ActionResult> {
 
       return meeting;
     });
+
+    // Após criar, buscar os participantes finais (se não foram fornecidos, buscar todos os membros do projeto)
+    let finalParticipantIds = participantIds;
+    if (finalParticipantIds.length === 0) {
+      const projectMembers = await prisma.projectMember.findMany({
+        where: { projectId: data.projectId },
+        select: { userId: true },
+      });
+      finalParticipantIds = projectMembers.map(m => m.userId);
+    }
+
+    // Disparar notificação de criação
+    await notifyMeetingCreated(created.id, finalParticipantIds).catch(console.error);
 
     revalidatePath('/reunioes');
     revalidatePath('/projetos');
@@ -500,7 +518,7 @@ export async function updateMeeting(input: unknown): Promise<ActionResult> {
 
       if (nextParticipantIds.length) {
         await tx.meetingParticipant.createMany({
-          data: nextParticipantIds.map((userId : any) => ({
+          data: nextParticipantIds.map((userId) => ({
             meetingId: meeting.id,
             userId,
           })),
@@ -509,6 +527,31 @@ export async function updateMeeting(input: unknown): Promise<ActionResult> {
 
       return meeting;
     });
+
+    // Após atualizar, buscar os IDs dos participantes finais
+    const finalParticipantIds = nextParticipantIds.length
+      ? nextParticipantIds
+      : (await prisma.projectMember.findMany({
+          where: { projectId: nextProjectId },
+          select: { userId: true },
+        })).map(m => m.userId);
+
+    // Coletar campos alterados (excluindo 'projectId' e outros que não queira)
+    const changedFields = historyEntries.map(entry => {
+      switch (entry.field) {
+        case 'title': return 'título';
+        case 'description': return 'descrição';
+        case 'date': return 'data';
+        case 'duration': return 'duração';
+        case 'agenda': return 'pauta';
+        case 'minutes': return 'ata';
+        default: return entry.field;
+      }
+    }).filter(Boolean);
+
+    if (changedFields.length > 0 && finalParticipantIds.length) {
+      await notifyMeetingEdited(updated.id, finalParticipantIds, changedFields).catch(console.error);
+    }
 
     revalidatePath('/reunioes');
     revalidatePath(`/reunioes/${updated.id}`);
@@ -544,6 +587,11 @@ export async function deleteMeeting(input: unknown): Promise<ActionResult> {
 
     const meeting = await ensureMeetingAccess(user, data.id);
 
+    // Guardar informações necessárias antes de deletar
+    const meetingTitle = meeting.title;
+    const participantIds = meeting.participants.map(p => p.user.id);
+    const projectId = meeting.projectId;
+
     await prisma.$transaction(async (tx) => {
       await tx.comment.deleteMany({
         where: {
@@ -563,6 +611,21 @@ export async function deleteMeeting(input: unknown): Promise<ActionResult> {
         },
       });
     });
+
+    // Notificar participantes sobre exclusão
+    if (participantIds.length) {
+      await notifyMeetingDeleted(data.id, meetingTitle, participantIds).catch(console.error);
+    } else if (projectId) {
+      // Caso não houvesse participantes específicos, notificar todos os membros do projeto
+      const projectMembers = await prisma.projectMember.findMany({
+        where: { projectId },
+        select: { userId: true },
+      });
+      const allMemberIds = projectMembers.map(m => m.userId);
+      if (allMemberIds.length) {
+        await notifyMeetingDeleted(data.id, meetingTitle, allMemberIds).catch(console.error);
+      }
+    }
 
     revalidatePath('/reunioes');
     revalidatePath('/projetos');
