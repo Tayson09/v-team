@@ -32,7 +32,6 @@ export default function Sidebar({ isAdmin }: SidebarProps) {
     { name: "Reuniões", href: "/reunioes", icon: Calendar, adminOnly: false },
     { name: "Equipe", href: "/equipe", icon: Users, adminOnly: true },
     { name: "Relatórios", href: "/relatorios", icon: BarChart3, adminOnly: true },
-    { name: "Configurações", href: "/configuracoes", icon: Settings, adminOnly: false },
   ];
 
   const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin);
