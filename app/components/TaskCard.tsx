@@ -1,128 +1,347 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, Flag, User, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, type MouseEvent } from "react";
+import {
+  Calendar,
+  User,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Pencil,
+  Trash2,
+  ArrowUpRight,
+} from "lucide-react";
+import { Prisma } from "@prisma/client";
+import { deleteTask } from "../actions/tasks";
+
+// Tipo exato da tarefa com project e assignee incluídos
+type TaskWithProjectAndAssignee = Prisma.TaskGetPayload<{
+  include: {
+    project: true;
+    assignee: true;
+  };
+}>;
 
 interface TaskCardProps {
-  task: {
-    id: number;
-    title: string;
-    description: string | null;
-    priority: string;
-    status: string;
-    dueDate: Date | null;
-    project: { id: number; name: string } | null;
-    assignee: { id: number; name: string | null; email: string } | null;
-  };
+  task: TaskWithProjectAndAssignee;
   isAdmin: boolean;
 }
 
+const priorityStyles = {
+  baixa: {
+    label: "Baixa",
+    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    accent: "from-emerald-500/60 to-emerald-400/0",
+    dot: "bg-emerald-400",
+  },
+  media: {
+    label: "Média",
+    chip: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    accent: "from-amber-500/60 to-amber-400/0",
+    dot: "bg-amber-400",
+  },
+  alta: {
+    label: "Alta",
+    chip: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+    accent: "from-rose-500/60 to-rose-400/0",
+    dot: "bg-rose-400",
+  },
+  urgente: {
+    label: "Urgente",
+    chip: "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300",
+    accent: "from-fuchsia-500/60 to-fuchsia-400/0",
+    dot: "bg-fuchsia-400",
+  },
+  low: {
+    label: "Low",
+    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    accent: "from-emerald-500/60 to-emerald-400/0",
+    dot: "bg-emerald-400",
+  },
+  medium: {
+    label: "Medium",
+    chip: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    accent: "from-amber-500/60 to-amber-400/0",
+    dot: "bg-amber-400",
+  },
+  high: {
+    label: "High",
+    chip: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+    accent: "from-rose-500/60 to-rose-400/0",
+    dot: "bg-rose-400",
+  },
+  urgent: {
+    label: "Urgent",
+    chip: "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300",
+    accent: "from-fuchsia-500/60 to-fuchsia-400/0",
+    dot: "bg-fuchsia-400",
+  },
+} as const;
+
+const statusLabels: Record<string, string> = {
+  pending: "Pendente",
+  in_progress: "Em andamento",
+  done: "Concluída",
+  blocked: "Bloqueada",
+  canceled: "Cancelada",
+};
+
+const statusStyles: Record<
+  string,
+  {
+    chip: string;
+    dot: string;
+    icon?: React.ReactNode;
+  }
+> = {
+  pending: {
+    chip: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    dot: "bg-amber-400",
+  },
+  in_progress: {
+    chip: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+    dot: "bg-sky-400",
+  },
+  done: {
+    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    dot: "bg-emerald-400",
+  },
+  blocked: {
+    chip: "border-rose-500/30 bg-rose-500/10 text-rose-200",
+    dot: "bg-rose-400",
+  },
+  canceled: {
+    chip: "border-zinc-500/30 bg-zinc-500/10 text-zinc-200",
+    dot: "bg-zinc-400",
+  },
+};
+
+function formatDate(date?: Date | string | null) {
+  if (!date) return "Sem prazo";
+  return new Date(date).toLocaleDateString("pt-BR");
+}
+
 export default function TaskCard({ task, isAdmin }: TaskCardProps) {
-  const isLate = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "completed";
-  const isCompleted = task.status === "completed";
+  const router = useRouter();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Cores e ícones por prioridade
-  const priorityConfig = {
-    baixa: { color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/30", icon: "🔽" },
-    media: { color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/30", icon: "▶" },
-    alta: { color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/30", icon: "🔺" },
-  } as const;
-  const priorityKey = task.priority.toLowerCase() as keyof typeof priorityConfig;
-  const priorityStyle = priorityConfig[priorityKey] || priorityConfig.media;
+  const isLate =
+    !!task.dueDate &&
+    new Date(task.dueDate).getTime() < Date.now() &&
+    task.status !== "done";
 
-  // Status em português
-  const statusLabel = {
-    pending: "Pendente",
-    in_progress: "Em andamento",
-    completed: "Concluída",
-    blocked: "Bloqueada",
-  }[task.status] || task.status;
+  const isCompleted = task.status === "done";
+
+  const priorityKey = String(task.priority || "media").toLowerCase();
+  const priority =
+    priorityStyles[priorityKey as keyof typeof priorityStyles] ??
+    priorityStyles.media;
+
+  const statusLabel = statusLabels[task.status] ?? task.status;
+  const statusStyle =
+    statusStyles[task.status] ??
+    statusStyles.pending;
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteTask(task.id);
+
+      if (result.success) {
+        router.refresh();
+      } else {
+        alert(result.message);
+      }
+    } catch {
+      alert("Erro ao excluir tarefa.");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const stopCardNavigation = (e: MouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   return (
-    <Link
-      href={`/tarefas/${task.id}`}
-      className="group block relative overflow-hidden rounded-2xl bg-gray-900/60 backdrop-blur-sm border border-purple-500/20 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/10"
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/0 via-purple-500/0 to-purple-400/0 group-hover:from-purple-600/10 group-hover:via-purple-500/5 group-hover:to-purple-400/0 transition-all duration-500" />
+    <article className="group relative h-full">
+      <Link
+        href={`/tarefas/${task.id}`}
+        className="block h-full outline-none"
+      >
+        <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-purple-400/30 hover:shadow-[0_18px_45px_rgba(124,58,237,0.14)] focus-visible:ring-2 focus-visible:ring-purple-400/60">
+          {/* faixa superior */}
+          <div
+            className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${priority.accent}`}
+          />
 
-      <div className="relative p-5">
-        {/* Cabeçalho com título e prioridade */}
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="text-lg font-semibold text-white truncate max-w-[200px]">
-            {task.title}
-          </h3>
-          <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityStyle.color} ${priorityStyle.bg} border ${priorityStyle.border}`}>
-            {priorityStyle.icon} {task.priority}
-          </div>
-        </div>
+          {/* brilho suave no hover */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-purple-500/[0.03] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-        {/* Descrição (curta) */}
-        <p className="text-purple-200/70 text-sm mb-3 line-clamp-2">
-          {task.description || "Sem descrição"}
-        </p>
+          <div className="relative flex h-full flex-col p-5">
+            {/* cabeçalho */}
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${priority.dot}`} />
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium tracking-wide ${priority.chip}`}
+                  >
+                    {priority.label}
+                  </span>
+                </div>
 
-        {/* Métricas */}
-        <div className="space-y-2 text-sm">
-          {task.project && (
-            <div className="flex items-center gap-2 text-purple-200/80">
-              <span className="text-xs">📁</span>
-              <span className="truncate">{task.project.name}</span>
-            </div>
-          )}
+                <h3 className="line-clamp-2 text-lg font-semibold leading-snug text-white transition-colors group-hover:text-purple-100">
+                  {task.title}
+                </h3>
+              </div>
 
-          {task.assignee && (
-            <div className="flex items-center gap-2 text-purple-200/80">
-              <User className="h-3 w-3" />
-              <span>{task.assignee.name || task.assignee.email}</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-purple-200/80">
-              <Calendar className="h-3 w-3" />
-              <span>
-                {task.dueDate
-                  ? new Date(task.dueDate).toLocaleDateString("pt-BR")
-                  : "Sem prazo"}
+              <span
+                className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusStyle.chip}`}
+              >
+                <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
+                {statusLabel}
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              {isLate && !isCompleted && (
-                <span className="flex items-center gap-1 text-red-400 text-xs">
-                  <AlertCircle className="h-3 w-3" /> Atrasada
-                </span>
+
+            {/* descrição */}
+            <p className="mb-4 line-clamp-3 text-sm leading-6 text-zinc-300/80">
+              {task.description || "Sem descrição"}
+            </p>
+
+            {/* metadados */}
+            <div className="grid gap-2 text-sm text-zinc-300/85">
+              {task.project && (
+                <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                  <span className="text-base">📁</span>
+                  <span className="truncate">
+                    <span className="text-zinc-400">Projeto:</span>{" "}
+                    {task.project.name}
+                  </span>
+                </div>
               )}
-              {isCompleted && (
-                <span className="flex items-center gap-1 text-green-400 text-xs">
-                  <CheckCircle className="h-3 w-3" /> Concluída
-                </span>
+
+              {task.assignee && (
+                <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                  <User className="h-4 w-4 text-zinc-400" />
+                  <span className="truncate">
+                    <span className="text-zinc-400">Responsável:</span>{" "}
+                    {task.assignee.name || task.assignee.email}
+                  </span>
+                </div>
               )}
-              {!isLate && !isCompleted && task.status === "in_progress" && (
-                <span className="flex items-center gap-1 text-blue-400 text-xs">
-                  <Clock className="h-3 w-3" /> Em andamento
-                </span>
-              )}
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-zinc-400" />
+                  <span className="text-zinc-400">Prazo:</span>
+                  <span>{formatDate(task.dueDate)}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isLate && !isCompleted && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Atrasada
+                    </span>
+                  )}
+
+                  {isCompleted && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Concluída
+                    </span>
+                  )}
+
+                  {!isLate && !isCompleted && task.status === "in_progress" && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] text-sky-200">
+                      <Clock className="h-3.5 w-3.5" />
+                      Em andamento
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* rodapé */}
+            <div className="mt-5 flex items-center justify-between border-t border-white/5 pt-4">
+              <span className="text-xs text-zinc-400">
+                Clique para abrir os detalhes
+              </span>
+
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-purple-300 transition-transform duration-300 group-hover:translate-x-0.5">
+                Ver tarefa
+                <ArrowUpRight className="h-4 w-4" />
+              </span>
             </div>
           </div>
         </div>
+      </Link>
 
-        {/* Status visual no canto inferior direito */}
-        <div className="absolute bottom-3 right-3">
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full border ${
-              task.status === "completed"
-                ? "border-green-500 text-green-300 bg-green-500/10"
-                : task.status === "in_progress"
-                ? "border-blue-500 text-blue-300 bg-blue-500/10"
-                : task.status === "blocked"
-                ? "border-red-500 text-red-300 bg-red-500/10"
-                : "border-yellow-500 text-yellow-300 bg-yellow-500/10"
-            }`}
-          >
-            {statusLabel}
-          </span>
+      {/* ações de admin */}
+      {isAdmin && (
+        <div className="absolute right-3 top-3 z-20">
+          {!showDeleteConfirm ? (
+            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-zinc-950/85 p-1.5 shadow-lg backdrop-blur-md">
+              <Link
+                href={`/tarefas/editar/${task.id}`}
+                onClick={stopCardNavigation}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-200 transition hover:bg-sky-500/25 hover:text-white"
+                title="Editar tarefa"
+                aria-label="Editar tarefa"
+              >
+                <Pencil size={15} />
+              </Link>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  stopCardNavigation(e);
+                  setShowDeleteConfirm(true);
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-200 transition hover:bg-rose-500/25 hover:text-white"
+                title="Excluir tarefa"
+                aria-label="Excluir tarefa"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-2xl border border-rose-500/25 bg-zinc-950/90 px-3 py-2 shadow-lg backdrop-blur-md">
+              <span className="text-xs font-medium text-white">Excluir?</span>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  stopCardNavigation(e);
+                  handleDelete();
+                }}
+                disabled={isDeleting}
+                className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting ? "..." : "Sim"}
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  stopCardNavigation(e);
+                  setShowDeleteConfirm(false);
+                }}
+                className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-white/15"
+              >
+                Não
+              </button>
+            </div>
+          )}
         </div>
-      </div>
-    </Link>
+      )}
+    </article>
   );
 }

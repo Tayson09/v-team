@@ -13,7 +13,7 @@ import {
 } from '../../lib/notifications/individual';
 
 // -------------------------------
-// Tipos e Schemas (inalterados)
+// Tipos e Schemas
 // -------------------------------
 type ActionResult<T = unknown> =
   | {
@@ -117,7 +117,7 @@ const completeTaskSchema = z.object({
 });
 
 // -------------------------------
-// Funções auxiliares (inalteradas)
+// Funções auxiliares
 // -------------------------------
 function toPlainObject(input: unknown): Record<string, unknown> {
   if (input instanceof FormData) {
@@ -328,7 +328,7 @@ async function ensureTaskAccess(user: AuthUser, taskId: number) {
   return task;
 }
 
-// Notificação interna (transacional) – inalterada
+// Notificação interna (transacional)
 async function createNotification(
   tx: Prisma.TransactionClient,
   params: {
@@ -393,7 +393,7 @@ function pushChange(
 }
 
 // -------------------------------
-// Funções de ação (modificadas)
+// Funções de ação (leitura)
 // -------------------------------
 
 export async function getTasks(filters?: {
@@ -479,9 +479,22 @@ export async function getTaskById(taskId: number): Promise<ActionResult> {
   }
 }
 
+// -------------------------------
+// Funções de ação (mutação)
+// -------------------------------
+
 export async function createTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem criar tarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem criar tarefas.',
+      };
+    }
+
     const raw = toPlainObject(input);
     const data = createTaskSchema.parse(raw);
 
@@ -580,6 +593,15 @@ export async function createTask(input: unknown): Promise<ActionResult> {
 export async function updateTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem editar tarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem editar tarefas.',
+      };
+    }
+
     const raw = toPlainObject(input);
     const data = updateTaskSchema.parse(raw);
 
@@ -693,7 +715,6 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
       );
     }
 
-    // Executar a transação de atualização
     const updated = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id: currentTask.id },
@@ -747,11 +768,8 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
       return task;
     });
 
-    // ----------------------------------------------------------
-    // NOTIFICAÇÃO DE EDIÇÃO (fora da transação)
-    // ----------------------------------------------------------
+    // Notificação de edição (fora da transação)
     if (updated.assigneeId && historyEntries.length > 0) {
-      // Mapear campos alterados para nomes amigáveis
       const changedFields = historyEntries.map(entry => {
         switch (entry.field) {
           case 'title': return 'título';
@@ -762,7 +780,7 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
           case 'assigneeId': return 'responsável';
           default: return entry.field;
         }
-      }).filter(f => f !== 'responsável'); // remover mudança de assignee porque já foi notificado separadamente
+      }).filter(f => f !== 'responsável');
 
       if (changedFields.length > 0) {
         await notifyTaskEdited(updated.id, updated.assigneeId, changedFields).catch(console.error);
@@ -798,6 +816,15 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
 export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem alterar status
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem alterar o status da tarefa.',
+      };
+    }
+
     const raw = toPlainObject(input);
     const data = changeStatusSchema.parse(raw);
 
@@ -834,7 +861,6 @@ export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
       return task;
     });
 
-    // Se o novo status for DONE, notificar admins (fora da transação)
     if (nextStatusEnum === 'DONE' && user.role !== Role.ADMIN) {
       const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
       if (adminUsers.length) {
@@ -870,6 +896,15 @@ export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
 export async function assignTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem atribuir tarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem atribuir tarefas.',
+      };
+    }
+
     const raw = toPlainObject(input);
     const data = assignTaskSchema.parse(raw);
 
@@ -953,6 +988,15 @@ export async function completeTask(
 ): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem concluir tarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem concluir tarefas.',
+      };
+    }
+
     const raw = toPlainObject({ taskId, justification, justificationType });
     const data = completeTaskSchema.parse(raw);
 
@@ -1042,7 +1086,6 @@ export async function completeTask(
       return task;
     });
 
-    // Notificar administradores sobre a conclusão (se quem concluiu não for admin)
     if (user.role !== Role.ADMIN) {
       const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
       if (adminUsers.length) {
@@ -1079,6 +1122,15 @@ export async function completeTask(
 export async function createSubtask(parentTaskId: number, input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem criar subtarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem criar subtarefas.',
+      };
+    }
+
     const parentTask = await ensureTaskAccess(user, parentTaskId);
 
     const raw = toPlainObject(input);
@@ -1110,6 +1162,15 @@ export async function createSubtask(parentTaskId: number, input: unknown): Promi
 export async function deleteTask(taskId: number): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
+
+    // Apenas administradores podem excluir tarefas
+    if (user.role !== Role.ADMIN) {
+      return {
+        success: false,
+        message: 'Apenas administradores podem excluir tarefas.',
+      };
+    }
+
     const task = await ensureTaskAccess(user, taskId);
 
     const subtasksCount = await prisma.task.count({
