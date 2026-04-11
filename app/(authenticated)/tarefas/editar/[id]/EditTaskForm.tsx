@@ -55,7 +55,12 @@ export default function EditTaskForm({
       router.push(`/tarefas/${task.id}`);
       router.refresh();
     } else {
-      setError(result.message);
+      if (result.errors) {
+        console.log(result.errors); // 👈 DEBUG
+        setError(JSON.stringify(result.errors, null, 2));
+      } else {
+        setError(result.message);
+      }
     }
     setIsLoading(false);
   }

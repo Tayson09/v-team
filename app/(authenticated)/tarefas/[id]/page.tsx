@@ -7,7 +7,6 @@ import Link from "next/link";
 import DeleteTaskButton from "./DeleteTaskButton";
 import { Prisma } from "@prisma/client";
 
-// Tipo exato da tarefa retornada por getTaskById
 type TaskWithDetails = Prisma.TaskGetPayload<{
   include: {
     project: {
@@ -34,12 +33,13 @@ type TaskWithDetails = Prisma.TaskGetPayload<{
 export default async function TaskDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const taskId = parseInt(params.id);
+  const { id } = await params;
+  const taskId = parseInt(id, 10);
   if (isNaN(taskId)) notFound();
 
   const result = await getTaskById(taskId);
@@ -55,7 +55,6 @@ export default async function TaskDetailPage({
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
-      {/* Cabeçalho com navegação e ações */}
       <div className="flex items-center justify-between">
         <Link
           href="/tarefas"
@@ -65,7 +64,6 @@ export default async function TaskDetailPage({
           Voltar para lista
         </Link>
 
-        {/* Ações exclusivas para admin */}
         {isAdmin && (
           <div className="flex gap-2">
             <Link
@@ -80,7 +78,6 @@ export default async function TaskDetailPage({
         )}
       </div>
 
-      {/* Card principal da tarefa */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/40 via-purple-800/20 to-transparent p-6 border border-purple-500/20">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none"></div>
         <div className="space-y-4">
@@ -153,7 +150,6 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      {/* Histórico de alterações */}
       {task.history.length > 0 && (
         <div className="rounded-xl bg-gray-900/50 border border-purple-500/20 p-6">
           <h2 className="text-xl font-semibold text-white mb-4">

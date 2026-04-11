@@ -71,12 +71,21 @@ const optionalDate = z.preprocess((value) => {
   return value;
 }, z.date().nullable().optional());
 
+const nullableNumber = z.preprocess((value) => {
+  if (value === '' || value === null || value === undefined) return null;
+
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) return value;
+
+  return parsed;
+}, z.number().int().positive().nullable().optional());
+
 const createTaskSchema = z.object({
   title: z.string().min(3, 'O título precisa ter ao menos 3 caracteres.'),
   description: optionalText,
   projectId: z.coerce.number().int().positive('Projeto inválido.'),
-  assigneeId: z.coerce.number().int().positive().nullable().optional(),
-  parentTaskId: z.coerce.number().int().positive().nullable().optional(),
+  assigneeId: nullableNumber,
+  parentTaskId: nullableNumber,
   dueDate: optionalDate,
   priority: prioritySchema,
   status: statusSchema,
@@ -88,8 +97,8 @@ const updateTaskSchema = z.object({
   id: z.coerce.number().int().positive('Tarefa inválida.'),
   title: z.string().min(3, 'O título precisa ter ao menos 3 caracteres.').optional(),
   description: optionalText,
-  assigneeId: z.coerce.number().int().positive().nullable().optional(),
-  parentTaskId: z.coerce.number().int().positive().nullable().optional(),
+  assigneeId: nullableNumber,
+  parentTaskId: nullableNumber,
   dueDate: optionalDate,
   priority: prioritySchema,
   status: statusSchema,

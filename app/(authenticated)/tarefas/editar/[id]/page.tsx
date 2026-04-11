@@ -6,7 +6,6 @@ import { getTaskById } from "../../../../actions/tasks";
 import EditTaskForm from "./EditTaskForm";
 import { Prisma } from "@prisma/client";
 
-// Tipo exato da tarefa retornada por getTaskById
 type TaskWithDetails = Prisma.TaskGetPayload<{
   include: {
     project: {
@@ -33,7 +32,7 @@ type TaskWithDetails = Prisma.TaskGetPayload<{
 export default async function EditTaskPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
@@ -41,7 +40,8 @@ export default async function EditTaskPage({
   const isAdmin = (session.user as { role?: string }).role === "ADMIN";
   if (!isAdmin) redirect("/tarefas");
 
-  const taskId = parseInt(params.id);
+  const { id } = await params;
+  const taskId = parseInt(id, 10);
   if (isNaN(taskId)) notFound();
 
   const result = await getTaskById(taskId);
@@ -49,17 +49,15 @@ export default async function EditTaskPage({
 
   const task = result.data as TaskWithDetails;
 
-  // Buscar membros do projeto para o select de responsável
   const projectMembers = await prisma.projectMember.findMany({
     where: { projectId: task.projectId },
     include: { user: { select: { id: true, name: true, email: true } } },
   });
 
-  // Buscar tarefas do mesmo projeto para possível tarefa pai
   const availableParentTasks = await prisma.task.findMany({
     where: {
       projectId: task.projectId,
-      id: { not: task.id }, // não pode ser ela mesma
+      id: { not: task.id },
     },
     select: { id: true, title: true },
   });
