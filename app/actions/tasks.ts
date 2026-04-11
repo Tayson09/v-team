@@ -4,7 +4,10 @@ import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { Prisma, Role } from '@prisma/client';
 import { z } from 'zod';
-import { uploadToS3 } from "@/lib/upload";
+
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { r2 } from "@/lib/r2";
+import { randomUUID } from "crypto";
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -272,49 +275,83 @@ async function canAccessProject(user: AuthUser, projectId: number) {
   return !!member;
 }
 
-export async function addTaskFile(formData: FormData): Promise<void> {
+export async function addTaskFile(formData: FormData) {
   try {
-    const user = await getAuthUser();
+    console.log("🚀 INICIO addTaskFile");
+
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      console.log("❌ Usuário não autenticado");
+      return;
+    }
 
     const taskId = Number(formData.get("taskId"));
-    const file = formData.get("file") as File;
+    const file = formData.get("file");
 
-    if (!taskId || !file) {
-      throw new Error("Dados inválidos");
+    console.log("📦 taskId:", taskId);
+    console.log("📎 file recebido:", file);
+
+    if (!file || !(file instanceof File)) {
+      console.log("❌ FILE INVÁLIDO");
+      return;
     }
 
-    const task = await ensureTaskAccess(user, taskId);
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email.toLowerCase().trim() },
+      select: { id: true },
+    });
 
-    // 🔒 REGRA DE NEGÓCIO
-    if (task.assigneeId !== user.id) {
-      throw new Error("Você não pode anexar arquivos nesta tarefa.");
+    if (!user) {
+      console.log("❌ Usuário não encontrado no banco");
+      return;
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    console.log("👤 uploadedById:", user.id);
 
-    const filePath = `uploads/${Date.now()}-${file.name}`;
+    console.log("📄 nome:", file.name);
+    console.log("📏 tamanho:", file.size);
+    console.log("📂 tipo:", file.type);
 
-    // salvar arquivo (ex: fs ou cloud depois)
-    const fs = await import("fs/promises");
-    await fs.writeFile(`./public/${filePath}`, buffer);
+    const fileName = `${crypto.randomUUID()}-${file.name}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    console.log("☁️ enviando para R2...");
+
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: fileName,
+        Body: buffer,
+        ContentType: file.type || "application/octet-stream",
+      })
+    );
+
+    console.log("✅ upload R2 concluído");
+
+    const fileUrl = `${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET_NAME}/${fileName}`;
+
+    console.log("💾 salvando no banco...");
 
     await prisma.taskFile.create({
       data: {
-          taskId,
-          originalName: file.name, 
-          fileName: file.name,    
-          filePath,
-          mimeType: file.type,      
-          fileSize: file.size,
-          uploadedById: user.id,
-        },
-      });
+        taskId,
+        uploadedById: user.id,
+        originalName: file.name,
+        fileName,
+        filePath: fileUrl,
+        mimeType: file.type || "application/octet-stream",
+        fileSize: file.size,
+      },
+    });
+
+    console.log("🎉 REGISTRO CRIADO NO BANCO");
 
     revalidatePath(`/tarefas/${taskId}`);
+    return { success: true };
   } catch (error) {
-    console.error(error);
-    throw error; // importante pro Next lidar com erro
+    console.error("🔥 ERRO NA addTaskFile:", error);
+    return { success: false };
   }
 }
 
@@ -1293,5 +1330,38 @@ export async function deleteTask(taskId: number): Promise<ActionResult> {
       success: false,
       message: error instanceof Error ? error.message : 'Erro ao excluir tarefa.',
     };
+  }
+}
+
+export async function deleteTaskFile(fileId: number) {
+  try {
+    const user = await getAuthUser();
+
+    const file = await prisma.taskFile.findUnique({
+      where: { id: fileId },
+      include: { task: true },
+    });
+
+    if (!file) {
+      return { success: false, message: "Arquivo não encontrado" };
+    }
+
+    // 🔒 só admin
+    if (user.role !== "ADMIN") {
+      return { success: false, message: "Sem permissão" };
+    }
+
+    // 🚫 não pode deletar se concluída
+    if (file.task.status === "done") {
+      return { success: false, message: "Tarefa já concluída" };
+    }
+
+    await prisma.taskFile.delete({
+      where: { id: fileId },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: "Erro ao deletar arquivo" };
   }
 }

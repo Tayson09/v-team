@@ -16,6 +16,8 @@ export const authOptions: NextAuthOptions = {
         remember: { label: 'Lembrar', type: 'checkbox' }
       },
       async authorize(credentials) {
+
+      console.log("CREDENTIALS:", credentials);  
       if (!credentials?.email || !credentials?.password) {
         return null;
       }

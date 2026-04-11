@@ -1,5 +1,5 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { s3 } from "./s3";
+import { s3 } from "./r2";
 import { randomUUID } from "crypto";
 
 export async function uploadToS3(file: File) {

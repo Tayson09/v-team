@@ -1,38 +1,27 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect, notFound } from "next/navigation";
-import { getTaskById } from "../../../actions/tasks";
 import {
-  Pencil,
-  ArrowLeft,
-  UploadCloud,
-  CheckCircle,
-} from "lucide-react";
+  getTaskById,
+  addTaskFile,
+  completeTask,
+  deleteTaskFile,
+} from "../../../actions/tasks";
+import { Pencil, ArrowLeft, UploadCloud, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import DeleteTaskButton from "./DeleteTaskButton";
+import TaskFiles from "./TaskFiles";
 import { Prisma } from "@prisma/client";
-import { addTaskFile, completeTask } from "../../../actions/tasks";
 
 type TaskWithDetails = Prisma.TaskGetPayload<{
   include: {
-    project: {
-      select: {
-        id: true;
-        name: true;
-        status: true;
-        statusEnum: true;
-        progress: true;
-      };
-    };
-    assignee: {
-      select: { id: true; name: true; email: true };
-    };
-    createdBy: {
-      select: { id: true; name: true; email: true };
-    };
+    project: true;
+    assignee: true;
+    createdBy: true;
     history: {
       orderBy: { createdAt: "desc" };
     };
+    files: true;
   };
 }>;
 
@@ -45,15 +34,37 @@ export default async function TaskDetailPage({
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const taskId = parseInt(id, 10);
-  if (isNaN(taskId)) notFound();
+  const taskId = Number(id);
+  if (Number.isNaN(taskId)) notFound();
 
   const result = await getTaskById(taskId);
   if (!result.success || !result.data) notFound();
 
   const task = result.data as TaskWithDetails;
-  const isAdmin = (session.user as { role?: string }).role === "ADMIN";
-  const isAssignee = session.user?.email === task.assignee?.email;
+
+  const sessionUserId = (session.user as any)?.id
+    ? Number((session.user as any).id)
+    : null;
+
+  const sessionUserRole = (session.user as any)?.role;
+  const isAdmin = sessionUserRole === "ADMIN";
+
+  const isAssignee =
+    sessionUserId !== null
+      ? sessionUserId === task.assigneeId
+      : session.user?.email === task.assignee?.email;
+
+  const taskStatus =
+    task.statusEnum ??
+    (task.status?.toUpperCase() as
+      | "PENDING"
+      | "IN_PROGRESS"
+      | "BLOCKED"
+      | "DONE"
+      | "CANCELED"
+      | undefined);
+
+  const isDone = taskStatus === "DONE" || task.status?.toLowerCase() === "done";
 
   const dueDateFormatted = task.dueDate
     ? new Date(task.dueDate).toLocaleDateString("pt-BR")
@@ -65,134 +76,78 @@ export default async function TaskDetailPage({
     ? new Date(task.completedAt).toLocaleString("pt-BR")
     : null;
 
+  const normalizedFiles = (task.files || []).map((file) => ({
+    id: file.id,
+    fileName: file.fileName,
+    originalName: file.originalName,
+    path: file.filePath,
+    mimeType: file.mimeType,
+    size: file.fileSize,
+    createdAt: file.createdAt.toISOString(),
+  }));
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
+    <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6 lg:p-8">
       <div className="flex items-center justify-between">
         <Link
           href="/tarefas"
-          className="inline-flex items-center gap-2 text-purple-300 hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 text-purple-300 hover:text-white"
         >
           <ArrowLeft size={20} />
-          Voltar para lista
+          Voltar
         </Link>
 
         {isAdmin && (
           <div className="flex gap-2">
             <Link
               href={`/tarefas/editar/${task.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white"
             >
               <Pencil size={18} />
-              Editar
             </Link>
             <DeleteTaskButton taskId={task.id} taskTitle={task.title} />
           </div>
         )}
       </div>
 
-      {/* 🎉 MENSAGEM DE SUCESSO */}
-      {task.status === "done" && (
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-400/5 to-transparent p-6 shadow-lg">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.4),transparent)]"></div>
-
-          <div className="relative flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/30">
-              <CheckCircle className="w-6 h-6 text-emerald-300" />
-            </div>
-
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-emerald-200">
+      {isDone && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="text-emerald-400" />
+            <div>
+              <p className="font-semibold text-emerald-200">
                 Tarefa concluída com sucesso 🎉
-              </h2>
-
-              <p className="text-sm text-emerald-300/80">
-                Esta tarefa foi finalizada por{" "}
-                <span className="font-medium text-white">
-                  {task.assignee?.name || "usuário"}
-                </span>
-                {completedAtFormatted && <> em {completedAtFormatted}</>}.
+              </p>
+              <p className="text-xs text-emerald-300/70">
+                Finalizada por {task.assignee?.name}
+                {completedAtFormatted && ` em ${completedAtFormatted}`}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Card principal */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/40 via-purple-800/20 to-transparent p-6 border border-purple-500/20">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none"></div>
+      <div className="space-y-4 rounded-2xl border border-purple-500/20 bg-purple-900/20 p-6">
+        <h1 className="text-2xl font-bold text-white">{task.title}</h1>
 
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">{task.title}</h1>
-            <p className="text-purple-200/80 mt-1">
-              Projeto:{" "}
-              <Link
-                href={`/projetos/${task.project.id}`}
-                className="hover:underline"
-              >
-                {task.project.name}
-              </Link>
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-purple-300">Status:</span>{" "}
-              <span className="font-medium text-white">{task.status}</span>
-            </div>
-            <div>
-              <span className="text-purple-300">Prioridade:</span>{" "}
-              <span className="font-medium text-white">{task.priority}</span>
-            </div>
-            <div>
-              <span className="text-purple-300">Responsável:</span>{" "}
-              <span className="font-medium text-white">
-                {task.assignee?.name || "Não atribuído"}
-              </span>
-            </div>
-            <div>
-              <span className="text-purple-300">Criado por:</span>{" "}
-              <span className="font-medium text-white">
-                {task.createdBy?.name || "—"}
-              </span>
-            </div>
-            <div>
-              <span className="text-purple-300">Prazo:</span>{" "}
-              <span className="font-medium text-white">{dueDateFormatted}</span>
-            </div>
-            <div>
-              <span className="text-purple-300">Criado em:</span>{" "}
-              <span className="font-medium text-white">
-                {createdAtFormatted}
-              </span>
-            </div>
-          </div>
-
-          {task.description && (
-            <div className="pt-4 border-t border-purple-500/20">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                Descrição
-              </h2>
-              <p className="text-purple-100 whitespace-pre-wrap">
-                {task.description}
-              </p>
-            </div>
-          )}
-
-          {task.justification && (
-            <div className="pt-4 border-t border-purple-500/20">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                Justificativa
-              </h2>
-              <p className="text-purple-100">{task.justification}</p>
-            </div>
-          )}
+        <div className="grid gap-2 text-sm text-purple-200 md:grid-cols-2">
+          <p>Status: {task.status}</p>
+          <p>Prioridade: {task.priority}</p>
+          <p>Responsável: {task.assignee?.name ?? "Não atribuído"}</p>
+          <p>Criado por: {task.createdBy?.name ?? "Não informado"}</p>
+          <p>Prazo: {dueDateFormatted}</p>
+          <p>Criado em: {createdAtFormatted}</p>
         </div>
+
+        {task.description && (
+          <div>
+            <h2 className="font-semibold text-white">Descrição</h2>
+            <p className="text-purple-100">{task.description}</p>
+          </div>
+        )}
       </div>
 
-      {/* BOTÃO CONCLUIR */}
-      {task.status !== "done" && isAssignee && (
+      {!isDone && isAssignee && (
         <form
           action={async () => {
             "use server";
@@ -200,98 +155,89 @@ export default async function TaskDetailPage({
           }}
           className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
         >
-          <div>
-            <p className="text-emerald-200 font-medium">
-              Marcar como concluída
-            </p>
-            <p className="text-xs text-emerald-300/70">
-              Apenas o responsável pode concluir
-            </p>
-          </div>
+          <span className="text-emerald-200">Marcar como concluída</span>
 
-          <button
-            type="submit"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition text-white"
-          >
-            <CheckCircle size={18} />
+          <button className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">
             Concluir
           </button>
         </form>
       )}
 
-      {/* 🚫 UPLOAD BLOQUEADO SE CONCLUÍDA */}
-      {isAssignee && task.status !== "done" && (
+      <TaskFiles
+        files={normalizedFiles}
+        isAdmin={isAdmin}
+        isTaskDone={isDone}
+        onDelete={async (fileId) => {
+          "use server";
+          await deleteTaskFile(fileId);
+        }}
+      />
+
+      {isAssignee && !isDone && (
         <form
-          action={addTaskFile}
-          className="group relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-900/30 via-zinc-900/40 to-transparent p-6 transition hover:border-purple-400/40"
+          action={async (formData) => {
+            "use server";
+            await addTaskFile(formData);
+          }}
+          className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-purple-950/40 to-slate-950/60 p-6 shadow-lg shadow-black/20"
         >
           <input type="hidden" name="taskId" value={task.id} />
 
-          <div className="flex flex-col items-center justify-center text-center space-y-4">
-            <div className="p-4 rounded-full bg-purple-500/10 border border-purple-500/20 group-hover:scale-105 transition">
-              <UploadCloud className="w-8 h-8 text-purple-300" />
+          <div className="mb-5 flex items-start gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-600/20 text-purple-200">
+              <UploadCloud size={22} />
             </div>
 
             <div>
-              <p className="text-white font-medium">
-                Enviar arquivo para esta tarefa
-              </p>
-              <p className="text-sm text-purple-300/70">
-                Clique abaixo para selecionar
+              <h2 className="text-lg font-semibold text-white">Enviar arquivo</h2>
+              <p className="text-sm text-purple-200/80">
+                Envie documentos, imagens ou anexos relacionados à tarefa.
               </p>
             </div>
+          </div>
 
-            <input
-              type="file"
-              name="file"
-              required
-              className="block w-full text-sm text-zinc-300
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-lg file:border-0
-              file:bg-purple-600 file:text-white
-              hover:file:bg-purple-700
-              cursor-pointer"
+          <label
+            htmlFor="file"
+            className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-purple-400/30 bg-white/5 px-6 py-10 text-center transition hover:border-purple-300 hover:bg-white/10"
+          >
+            <UploadCloud
+              className="mb-3 text-purple-300 transition group-hover:scale-110"
+              size={34}
             />
+            <p className="font-medium text-white">Clique para selecionar o arquivo</p>
+            <p className="mt-1 text-sm text-purple-200/70">
+              PDF, DOC, DOCX, PNG, JPG ou outros formatos permitidos
+            </p>
+            <p className="mt-2 text-xs text-purple-200/50">
+              Limite recomendado: até 10MB
+            </p>
+          </label>
+
+          <input id="file" type="file" name="file" required className="sr-only" />
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm text-purple-200/70">
+              O arquivo será vinculado automaticamente a esta tarefa.
+            </span>
 
             <button
               type="submit"
-              className="mt-2 inline-flex items-center gap-2 px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
+              className="inline-flex items-center justify-center rounded-xl bg-purple-600 px-5 py-2.5 font-medium text-white transition hover:bg-purple-700 active:scale-[0.98]"
             >
-              <UploadCloud size={18} />
               Enviar arquivo
             </button>
           </div>
         </form>
       )}
 
-      {/* Histórico */}
       {task.history.length > 0 && (
-        <div className="rounded-xl bg-gray-900/50 border border-purple-500/20 p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
-            Histórico de alterações
-          </h2>
+        <div className="rounded-xl border border-purple-500/20 bg-gray-900/50 p-6">
+          <h2 className="mb-3 font-semibold text-white">Histórico</h2>
 
-          <div className="space-y-3">
-            {task.history.map((entry) => (
-              <div
-                key={entry.id}
-                className="text-sm border-b border-gray-800 pb-2 last:border-0"
-              >
-                <p className="text-purple-300">
-                  <span className="font-medium text-white">{entry.field}</span>{" "}
-                  alterado de{" "}
-                  <span className="text-red-300">
-                    {entry.oldValue || "vazio"}
-                  </span>{" "}
-                  para{" "}
-                  <span className="text-green-300">
-                    {entry.newValue || "vazio"}
-                  </span>
-                </p>
-
-                <p className="text-gray-500 text-xs">
-                  {new Date(entry.createdAt).toLocaleString("pt-BR")}
-                </p>
+          <div className="space-y-2">
+            {task.history.map((h) => (
+              <div key={h.id} className="text-sm text-purple-300">
+                {h.field}: {h.oldValue ?? "—"} → {h.newValue ?? "—"}
               </div>
             ))}
           </div>
