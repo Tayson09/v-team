@@ -2,7 +2,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect, notFound } from "next/navigation";
 import { getTaskById } from "../../../actions/tasks";
-import { Pencil, ArrowLeft, UploadCloud, CheckCircle } from "lucide-react";
+import {
+  Pencil,
+  ArrowLeft,
+  UploadCloud,
+  CheckCircle,
+} from "lucide-react";
 import Link from "next/link";
 import DeleteTaskButton from "./DeleteTaskButton";
 import { Prisma } from "@prisma/client";
@@ -56,6 +61,10 @@ export default async function TaskDetailPage({
 
   const createdAtFormatted = new Date(task.createdAt).toLocaleDateString("pt-BR");
 
+  const completedAtFormatted = task.completedAt
+    ? new Date(task.completedAt).toLocaleString("pt-BR")
+    : null;
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -81,6 +90,33 @@ export default async function TaskDetailPage({
           </div>
         )}
       </div>
+
+      {/* 🎉 MENSAGEM DE SUCESSO */}
+      {task.status === "done" && (
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-400/5 to-transparent p-6 shadow-lg">
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.4),transparent)]"></div>
+
+          <div className="relative flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/30">
+              <CheckCircle className="w-6 h-6 text-emerald-300" />
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-emerald-200">
+                Tarefa concluída com sucesso 🎉
+              </h2>
+
+              <p className="text-sm text-emerald-300/80">
+                Esta tarefa foi finalizada por{" "}
+                <span className="font-medium text-white">
+                  {task.assignee?.name || "usuário"}
+                </span>
+                {completedAtFormatted && <> em {completedAtFormatted}</>}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Card principal */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/40 via-purple-800/20 to-transparent p-6 border border-purple-500/20">
@@ -155,7 +191,7 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      {/* ✅ BOTÃO CONCLUIR */}
+      {/* BOTÃO CONCLUIR */}
       {task.status !== "done" && isAssignee && (
         <form
           action={async () => {
@@ -183,8 +219,8 @@ export default async function TaskDetailPage({
         </form>
       )}
 
-      {/* 🚀 UPLOAD */}
-      {isAssignee && (
+      {/* 🚫 UPLOAD BLOQUEADO SE CONCLUÍDA */}
+      {isAssignee && task.status !== "done" && (
         <form
           action={addTaskFile}
           className="group relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-900/30 via-zinc-900/40 to-transparent p-6 transition hover:border-purple-400/40"
