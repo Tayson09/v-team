@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { Prisma, Role } from '@prisma/client';
 import { z } from 'zod';
+import { uploadToS3 } from "@/lib/upload";
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -269,6 +270,52 @@ async function canAccessProject(user: AuthUser, projectId: number) {
   });
 
   return !!member;
+}
+
+export async function addTaskFile(formData: FormData): Promise<void> {
+  try {
+    const user = await getAuthUser();
+
+    const taskId = Number(formData.get("taskId"));
+    const file = formData.get("file") as File;
+
+    if (!taskId || !file) {
+      throw new Error("Dados inválidos");
+    }
+
+    const task = await ensureTaskAccess(user, taskId);
+
+    // 🔒 REGRA DE NEGÓCIO
+    if (task.assigneeId !== user.id) {
+      throw new Error("Você não pode anexar arquivos nesta tarefa.");
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const filePath = `uploads/${Date.now()}-${file.name}`;
+
+    // salvar arquivo (ex: fs ou cloud depois)
+    const fs = await import("fs/promises");
+    await fs.writeFile(`./public/${filePath}`, buffer);
+
+    await prisma.taskFile.create({
+      data: {
+          taskId,
+          originalName: file.name, 
+          fileName: file.name,    
+          filePath,
+          mimeType: file.type,      
+          fileSize: file.size,
+          uploadedById: user.id,
+        },
+      });
+
+    revalidatePath(`/tarefas/${taskId}`);
+  } catch (error) {
+    console.error(error);
+    throw error; // importante pro Next lidar com erro
+  }
 }
 
 async function ensureProjectAccess(user: AuthUser, projectId: number) {
@@ -998,19 +1045,22 @@ export async function completeTask(
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem concluir tarefas
-    if (user.role !== Role.ADMIN) {
+    // 🔹 Validação correta
+    const raw = toPlainObject({ taskId, justification, justificationType });
+    const parsed = completeTaskSchema.parse(raw);
+
+    // 🔹 Buscar tarefa
+    const currentTask = await ensureTaskAccess(user, parsed.taskId);
+
+    // 🔒 Regra de negócio
+    if (currentTask.assigneeId !== user.id) {
       return {
         success: false,
-        message: 'Apenas administradores podem concluir tarefas.',
+        message: 'Apenas o responsável pode concluir a tarefa.',
       };
     }
 
-    const raw = toPlainObject({ taskId, justification, justificationType });
-    const data = completeTaskSchema.parse(raw);
-
-    const currentTask = await ensureTaskAccess(user, data.taskId);
-
+    // 🔒 Já concluída
     if (isTaskDone(currentTask.status)) {
       return {
         success: false,
@@ -1021,9 +1071,10 @@ export async function completeTask(
     const now = new Date();
     const isLate = !!currentTask.dueDate && currentTask.dueDate < now;
 
-    const cleanJustification = data.justification?.trim() || null;
-    const normalizedJustificationType = normalizeJustificationType(data.justificationType);
+    const cleanJustification = parsed.justification?.trim() || null;
+    const normalizedJustificationType = normalizeJustificationType(parsed.justificationType);
 
+    // 🔒 Regra: tarefa atrasada exige justificativa
     if (isLate && !cleanJustification) {
       return {
         success: false,
@@ -1031,13 +1082,14 @@ export async function completeTask(
       };
     }
 
-    if (data.justificationType && !normalizedJustificationType) {
+    if (parsed.justificationType && !normalizedJustificationType) {
       return {
         success: false,
         message: 'Tipo de justificativa inválido.',
       };
     }
 
+    // 🚀 Transação
     const updated = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id: currentTask.id },
@@ -1065,8 +1117,12 @@ export async function completeTask(
           },
           {
             field: 'completedAt',
-            oldValue: currentTask.completedAt ? currentTask.completedAt.toISOString() : null,
-            newValue: task.completedAt ? task.completedAt.toISOString() : null,
+            oldValue: currentTask.completedAt
+              ? currentTask.completedAt.toISOString()
+              : null,
+            newValue: task.completedAt
+              ? task.completedAt.toISOString()
+              : null,
             changeReason: isLate ? 'Task completed after due date.' : null,
           },
           ...(cleanJustification
@@ -1095,13 +1151,22 @@ export async function completeTask(
       return task;
     });
 
+    // 🔔 Notificar admins
     if (user.role !== Role.ADMIN) {
-      const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
-      if (adminUsers.length) {
-        await notifyAdminTaskCompleted(updated.id, adminUsers.map(a => a.id)).catch(console.error);
+      const admins = await prisma.user.findMany({
+        where: { role: Role.ADMIN },
+        select: { id: true },
+      });
+
+      if (admins.length) {
+        await notifyAdminTaskCompleted(
+          updated.id,
+          admins.map((a) => a.id)
+        ).catch(console.error);
       }
     }
 
+    // 🔄 Revalidação
     revalidatePath('/tarefas');
     revalidatePath(`/tarefas/${updated.id}`);
     revalidatePath('/projetos');
@@ -1123,7 +1188,10 @@ export async function completeTask(
 
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Erro ao concluir tarefa.',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Erro ao concluir tarefa.',
     };
   }
 }

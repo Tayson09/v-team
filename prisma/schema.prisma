@@ -73,6 +73,7 @@ model User {
   projects           ProjectMember[]
   tasks              Task[]               @relation("AssignedTasks")
   tasksCreated       Task[]               @relation("CreatedTasks")
+  uploadedFiles      TaskFile[]
   dailies            Daily[]
   meetings           MeetingParticipant[]
   warnings           UserWarning[]
@@ -164,6 +165,7 @@ model Task {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
+  files                TaskFile[]
   history              TaskHistory[]
   comments             Comment[]
 
@@ -173,6 +175,30 @@ model Task {
   @@index([assigneeId, statusEnum])
   @@index([dueDate])
   @@index([parentTaskId])
+}
+
+model TaskFile {
+  id            Int      @id @default(autoincrement())
+
+  // Relação com a tarefa
+  taskId        Int
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Quem enviou o arquivo
+  uploadedById  Int
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+
+  // Dados do arquivo
+  originalName  String   // nome original
+  fileName      String   // nome salvo
+  filePath      String   // caminho no servidor
+  mimeType      String   // tipo MIME
+  fileSize      Int      // tamanho em bytes
+
+  createdAt     DateTime @default(now())
+
+  @@index([taskId])
+  @@index([uploadedById])
 }
 
 model TaskHistory {

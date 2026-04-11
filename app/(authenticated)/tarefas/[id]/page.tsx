@@ -2,10 +2,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect, notFound } from "next/navigation";
 import { getTaskById } from "../../../actions/tasks";
-import { Pencil, ArrowLeft } from "lucide-react";
+import { Pencil, ArrowLeft, UploadCloud, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import DeleteTaskButton from "./DeleteTaskButton";
 import { Prisma } from "@prisma/client";
+import { addTaskFile, completeTask } from "../../../actions/tasks";
 
 type TaskWithDetails = Prisma.TaskGetPayload<{
   include: {
@@ -47,14 +48,17 @@ export default async function TaskDetailPage({
 
   const task = result.data as TaskWithDetails;
   const isAdmin = (session.user as { role?: string }).role === "ADMIN";
+  const isAssignee = session.user?.email === task.assignee?.email;
 
   const dueDateFormatted = task.dueDate
     ? new Date(task.dueDate).toLocaleDateString("pt-BR")
     : "Sem prazo";
+
   const createdAtFormatted = new Date(task.createdAt).toLocaleDateString("pt-BR");
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <Link
           href="/tarefas"
@@ -78,8 +82,10 @@ export default async function TaskDetailPage({
         )}
       </div>
 
+      {/* Card principal */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/40 via-purple-800/20 to-transparent p-6 border border-purple-500/20">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none"></div>
+
         <div className="space-y-4">
           <div>
             <h1 className="text-3xl font-bold text-white">{task.title}</h1>
@@ -121,13 +127,17 @@ export default async function TaskDetailPage({
             </div>
             <div>
               <span className="text-purple-300">Criado em:</span>{" "}
-              <span className="font-medium text-white">{createdAtFormatted}</span>
+              <span className="font-medium text-white">
+                {createdAtFormatted}
+              </span>
             </div>
           </div>
 
           {task.description && (
             <div className="pt-4 border-t border-purple-500/20">
-              <h2 className="text-lg font-semibold text-white mb-2">Descrição</h2>
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Descrição
+              </h2>
               <p className="text-purple-100 whitespace-pre-wrap">
                 {task.description}
               </p>
@@ -140,21 +150,91 @@ export default async function TaskDetailPage({
                 Justificativa
               </h2>
               <p className="text-purple-100">{task.justification}</p>
-              {task.justificationType && (
-                <p className="text-sm text-purple-300 mt-1">
-                  Tipo: {task.justificationType}
-                </p>
-              )}
             </div>
           )}
         </div>
       </div>
 
+      {/* ✅ BOTÃO CONCLUIR */}
+      {task.status !== "done" && isAssignee && (
+        <form
+          action={async () => {
+            "use server";
+            await completeTask(task.id);
+          }}
+          className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4"
+        >
+          <div>
+            <p className="text-emerald-200 font-medium">
+              Marcar como concluída
+            </p>
+            <p className="text-xs text-emerald-300/70">
+              Apenas o responsável pode concluir
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition text-white"
+          >
+            <CheckCircle size={18} />
+            Concluir
+          </button>
+        </form>
+      )}
+
+      {/* 🚀 UPLOAD */}
+      {isAssignee && (
+        <form
+          action={addTaskFile}
+          className="group relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-900/30 via-zinc-900/40 to-transparent p-6 transition hover:border-purple-400/40"
+        >
+          <input type="hidden" name="taskId" value={task.id} />
+
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="p-4 rounded-full bg-purple-500/10 border border-purple-500/20 group-hover:scale-105 transition">
+              <UploadCloud className="w-8 h-8 text-purple-300" />
+            </div>
+
+            <div>
+              <p className="text-white font-medium">
+                Enviar arquivo para esta tarefa
+              </p>
+              <p className="text-sm text-purple-300/70">
+                Clique abaixo para selecionar
+              </p>
+            </div>
+
+            <input
+              type="file"
+              name="file"
+              required
+              className="block w-full text-sm text-zinc-300
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-lg file:border-0
+              file:bg-purple-600 file:text-white
+              hover:file:bg-purple-700
+              cursor-pointer"
+            />
+
+            <button
+              type="submit"
+              className="mt-2 inline-flex items-center gap-2 px-6 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
+            >
+              <UploadCloud size={18} />
+              Enviar arquivo
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Histórico */}
       {task.history.length > 0 && (
         <div className="rounded-xl bg-gray-900/50 border border-purple-500/20 p-6">
           <h2 className="text-xl font-semibold text-white mb-4">
             Histórico de alterações
           </h2>
+
           <div className="space-y-3">
             {task.history.map((entry) => (
               <div
@@ -172,6 +252,7 @@ export default async function TaskDetailPage({
                     {entry.newValue || "vazio"}
                   </span>
                 </p>
+
                 <p className="text-gray-500 text-xs">
                   {new Date(entry.createdAt).toLocaleString("pt-BR")}
                 </p>
