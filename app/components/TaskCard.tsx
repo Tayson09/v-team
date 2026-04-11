@@ -93,7 +93,6 @@ const statusStyles: Record<
   {
     chip: string;
     dot: string;
-    icon?: React.ReactNode;
   }
 > = {
   pending: {
@@ -141,9 +140,7 @@ export default function TaskCard({ task, isAdmin }: TaskCardProps) {
     priorityStyles.media;
 
   const statusLabel = statusLabels[task.status] ?? task.status;
-  const statusStyle =
-    statusStyles[task.status] ??
-    statusStyles.pending;
+  const statusStyle = statusStyles[task.status] ?? statusStyles.pending;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -171,19 +168,78 @@ export default function TaskCard({ task, isAdmin }: TaskCardProps) {
 
   return (
     <article className="group relative h-full">
-      <Link
-        href={`/tarefas/${task.id}`}
-        className="block h-full outline-none"
-      >
-        <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-purple-400/30 hover:shadow-[0_18px_45px_rgba(124,58,237,0.14)] focus-visible:ring-2 focus-visible:ring-purple-400/60">
-          {/* faixa superior */}
-          <div
-            className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${priority.accent}`}
-          />
+      <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-purple-400/30 hover:shadow-[0_18px_45px_rgba(124,58,237,0.14)]">
+        {/* faixa superior */}
+        <div
+          className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${priority.accent}`}
+        />
 
-          {/* brilho suave no hover */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-purple-500/[0.03] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        {/* brilho suave no hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-purple-500/[0.03] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
+        {/* ações de admin */}
+        {isAdmin && (
+          <div className="absolute right-3 top-3 z-20">
+            {!showDeleteConfirm ? (
+              <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-zinc-950/85 p-1.5 shadow-lg backdrop-blur-md">
+                <Link
+                  href={`/tarefas/editar/${task.id}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-200 transition hover:bg-sky-500/25 hover:text-white"
+                  title="Editar tarefa"
+                  aria-label="Editar tarefa"
+                >
+                  <Pencil size={15} />
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    stopCardNavigation(e);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-200 transition hover:bg-rose-500/25 hover:text-white"
+                  title="Excluir tarefa"
+                  aria-label="Excluir tarefa"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-2xl border border-rose-500/25 bg-zinc-950/90 px-3 py-2 shadow-lg backdrop-blur-md">
+                <span className="text-xs font-medium text-white">Excluir?</span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    stopCardNavigation(e);
+                    handleDelete();
+                  }}
+                  disabled={isDeleting}
+                  className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDeleting ? "..." : "Sim"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    stopCardNavigation(e);
+                    setShowDeleteConfirm(false);
+                  }}
+                  className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-white/15"
+                >
+                  Não
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* link principal do card */}
+        <Link
+          href={`/tarefas/${task.id}`}
+          className="relative z-10 block h-full outline-none"
+        >
           <div className="relative flex h-full flex-col p-5">
             {/* cabeçalho */}
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -205,7 +261,9 @@ export default function TaskCard({ task, isAdmin }: TaskCardProps) {
               <span
                 className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusStyle.chip}`}
               >
-                <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
+                <span
+                  className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusStyle.dot}`}
+                />
                 {statusLabel}
               </span>
             </div>
@@ -281,67 +339,8 @@ export default function TaskCard({ task, isAdmin }: TaskCardProps) {
               </span>
             </div>
           </div>
-        </div>
-      </Link>
-
-      {/* ações de admin */}
-      {isAdmin && (
-        <div className="absolute right-3 top-3 z-20">
-          {!showDeleteConfirm ? (
-            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-zinc-950/85 p-1.5 shadow-lg backdrop-blur-md">
-              <Link
-                href={`/tarefas/editar/${task.id}`}
-                onClick={stopCardNavigation}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-200 transition hover:bg-sky-500/25 hover:text-white"
-                title="Editar tarefa"
-                aria-label="Editar tarefa"
-              >
-                <Pencil size={15} />
-              </Link>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  stopCardNavigation(e);
-                  setShowDeleteConfirm(true);
-                }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-200 transition hover:bg-rose-500/25 hover:text-white"
-                title="Excluir tarefa"
-                aria-label="Excluir tarefa"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 rounded-2xl border border-rose-500/25 bg-zinc-950/90 px-3 py-2 shadow-lg backdrop-blur-md">
-              <span className="text-xs font-medium text-white">Excluir?</span>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  stopCardNavigation(e);
-                  handleDelete();
-                }}
-                disabled={isDeleting}
-                className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isDeleting ? "..." : "Sim"}
-              </button>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  stopCardNavigation(e);
-                  setShowDeleteConfirm(false);
-                }}
-                className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-white/15"
-              >
-                Não
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+        </Link>
+      </div>
     </article>
   );
 }
