@@ -4,13 +4,6 @@ import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { Prisma, Role } from '@prisma/client';
 import { z } from 'zod';
-<<<<<<< HEAD
-=======
-
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { r2 } from "@/lib/r2";
-import { randomUUID } from "crypto";
->>>>>>> 1d13da871125c11f152e92740d88dca596f17e7c
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -278,89 +271,6 @@ async function canAccessProject(user: AuthUser, projectId: number) {
   return !!member;
 }
 
-<<<<<<< HEAD
-=======
-export async function addTaskFile(formData: FormData) {
-  try {
-    console.log("🚀 INICIO addTaskFile");
-
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      console.log("❌ Usuário não autenticado");
-      return;
-    }
-
-    const taskId = Number(formData.get("taskId"));
-    const file = formData.get("file");
-
-    console.log("📦 taskId:", taskId);
-    console.log("📎 file recebido:", file);
-
-    if (!file || !(file instanceof File)) {
-      console.log("❌ FILE INVÁLIDO");
-      return;
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email.toLowerCase().trim() },
-      select: { id: true },
-    });
-
-    if (!user) {
-      console.log("❌ Usuário não encontrado no banco");
-      return;
-    }
-
-    console.log("👤 uploadedById:", user.id);
-
-    console.log("📄 nome:", file.name);
-    console.log("📏 tamanho:", file.size);
-    console.log("📂 tipo:", file.type);
-
-    const fileName = `${crypto.randomUUID()}-${file.name}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    console.log("☁️ enviando para R2...");
-
-    await r2.send(
-      new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME!,
-        Key: fileName,
-        Body: buffer,
-        ContentType: file.type || "application/octet-stream",
-      })
-    );
-
-    console.log("✅ upload R2 concluído");
-
-    const fileUrl = `${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET_NAME}/${fileName}`;
-
-    console.log("💾 salvando no banco...");
-
-    await prisma.taskFile.create({
-      data: {
-        taskId,
-        uploadedById: user.id,
-        originalName: file.name,
-        fileName,
-        filePath: fileUrl,
-        mimeType: file.type || "application/octet-stream",
-        fileSize: file.size,
-      },
-    });
-
-    console.log("🎉 REGISTRO CRIADO NO BANCO");
-
-    revalidatePath(`/tarefas/${taskId}`);
-    return { success: true };
-  } catch (error) {
-    console.error("🔥 ERRO NA addTaskFile:", error);
-    return { success: false };
-  }
-}
-
->>>>>>> 1d13da871125c11f152e92740d88dca596f17e7c
 async function ensureProjectAccess(user: AuthUser, projectId: number) {
   const allowed = await canAccessProject(user, projectId);
 
