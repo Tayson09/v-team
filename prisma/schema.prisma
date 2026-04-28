@@ -135,7 +135,7 @@ model ProjectMember {
 model Task {
   id                   Int               @id @default(autoincrement())
   title                String
-  description          String?
+  description          String? @db.Text
   priority             String            @default("media")
   priorityEnum         TaskPriority      @default(MEDIUM)
   status               String            @default("pending")

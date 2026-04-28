@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { Prisma, Role } from '@prisma/client';
 import { z } from 'zod';
-import { uploadToS3 } from "@/lib/upload";
 
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -272,52 +271,6 @@ async function canAccessProject(user: AuthUser, projectId: number) {
   return !!member;
 }
 
-export async function addTaskFile(formData: FormData): Promise<void> {
-  try {
-    const user = await getAuthUser();
-
-    const taskId = Number(formData.get("taskId"));
-    const file = formData.get("file") as File;
-
-    if (!taskId || !file) {
-      throw new Error("Dados inválidos");
-    }
-
-    const task = await ensureTaskAccess(user, taskId);
-
-    // 🔒 REGRA DE NEGÓCIO
-    if (task.assigneeId !== user.id) {
-      throw new Error("Você não pode anexar arquivos nesta tarefa.");
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const filePath = `uploads/${Date.now()}-${file.name}`;
-
-    // salvar arquivo (ex: fs ou cloud depois)
-    const fs = await import("fs/promises");
-    await fs.writeFile(`./public/${filePath}`, buffer);
-
-    await prisma.taskFile.create({
-      data: {
-          taskId,
-          originalName: file.name, 
-          fileName: file.name,    
-          filePath,
-          mimeType: file.type,      
-          fileSize: file.size,
-          uploadedById: user.id,
-        },
-      });
-
-    revalidatePath(`/tarefas/${taskId}`);
-  } catch (error) {
-    console.error(error);
-    throw error; // importante pro Next lidar com erro
-  }
-}
-
 async function ensureProjectAccess(user: AuthUser, projectId: number) {
   const allowed = await canAccessProject(user, projectId);
 
@@ -382,6 +335,10 @@ async function ensureTaskAccess(user: AuthUser, taskId: number) {
   await ensureProjectAccess(user, task.projectId);
 
   return task;
+}
+
+function canUserCompleteTask(user: AuthUser, task: { assigneeId: number | null }) {
+  return task.assigneeId === user.id;
 }
 
 // Notificação interna (transacional)
@@ -451,7 +408,6 @@ function pushChange(
 // -------------------------------
 // Funções de ação (leitura)
 // -------------------------------
-
 export async function getTasks(filters?: {
   projectId?: number;
   assigneeId?: number;
@@ -517,6 +473,51 @@ export async function getTasks(filters?: {
   }
 }
 
+export async function addTaskFile(formData: FormData): Promise<void> {
+  try {
+    const user = await getAuthUser();
+
+    const taskId = Number(formData.get("taskId"));
+    const file = formData.get("file") as File;
+
+    if (!taskId || !file) {
+      throw new Error("Dados inválidos");
+    }
+
+    const task = await ensureTaskAccess(user, taskId);
+
+    // 🔒 REGRA: só o responsável pode anexar
+    if (task.assigneeId !== user.id) {
+      throw new Error("Você não pode anexar arquivos nesta tarefa.");
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const filePath = `uploads/${Date.now()}-${file.name}`;
+
+    const fs = await import("fs/promises");
+    await fs.writeFile(`./public/${filePath}`, buffer);
+
+    await prisma.taskFile.create({
+      data: {
+        taskId,
+        originalName: file.name,
+        fileName: file.name,
+        filePath,
+        mimeType: file.type,
+        fileSize: file.size,
+        uploadedById: user.id,
+      },
+    });
+
+    revalidatePath(`/tarefas/${taskId}`);
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
 export async function getTaskById(taskId: number): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
@@ -538,12 +539,10 @@ export async function getTaskById(taskId: number): Promise<ActionResult> {
 // -------------------------------
 // Funções de ação (mutação)
 // -------------------------------
-
 export async function createTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem criar tarefas
     if (user.role !== Role.ADMIN) {
       return {
         success: false,
@@ -650,7 +649,6 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem editar tarefas
     if (user.role !== Role.ADMIN) {
       return {
         success: false,
@@ -824,19 +822,27 @@ export async function updateTask(input: unknown): Promise<ActionResult> {
       return task;
     });
 
-    // Notificação de edição (fora da transação)
     if (updated.assigneeId && historyEntries.length > 0) {
-      const changedFields = historyEntries.map(entry => {
-        switch (entry.field) {
-          case 'title': return 'título';
-          case 'description': return 'descrição';
-          case 'dueDate': return 'prazo';
-          case 'priority': return 'prioridade';
-          case 'status': return 'status';
-          case 'assigneeId': return 'responsável';
-          default: return entry.field;
-        }
-      }).filter(f => f !== 'responsável');
+      const changedFields = historyEntries
+        .map((entry) => {
+          switch (entry.field) {
+            case 'title':
+              return 'título';
+            case 'description':
+              return 'descrição';
+            case 'dueDate':
+              return 'prazo';
+            case 'priority':
+              return 'prioridade';
+            case 'status':
+              return 'status';
+            case 'assigneeId':
+              return 'responsável';
+            default:
+              return entry.field;
+          }
+        })
+        .filter((f) => f !== 'responsável');
 
       if (changedFields.length > 0) {
         await notifyTaskEdited(updated.id, updated.assigneeId, changedFields).catch(console.error);
@@ -873,19 +879,28 @@ export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem alterar status
-    if (user.role !== Role.ADMIN) {
-      return {
-        success: false,
-        message: 'Apenas administradores podem alterar o status da tarefa.',
-      };
-    }
-
     const raw = toPlainObject(input);
     const data = changeStatusSchema.parse(raw);
 
     const currentTask = await ensureTaskAccess(user, data.taskId);
     const nextStatusEnum = normalizeStatusEnum(data.status);
+
+    const isAdmin = user.role === Role.ADMIN;
+    const isOwner = currentTask.assigneeId === user.id;
+
+    if (!isOwner && !isAdmin) {
+      return {
+        success: false,
+        message: 'Apenas o responsável ou um administrador podem alterar o status da tarefa.',
+      };
+    }
+
+    if (nextStatusEnum === 'DONE' && !isOwner) {
+      return {
+        success: false,
+        message: 'Somente o responsável pela tarefa pode marcá-la como concluída.',
+      };
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
@@ -917,10 +932,17 @@ export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
       return task;
     });
 
-    if (nextStatusEnum === 'DONE' && user.role !== Role.ADMIN) {
-      const adminUsers = await prisma.user.findMany({ where: { role: Role.ADMIN }, select: { id: true } });
-      if (adminUsers.length) {
-        await notifyAdminTaskCompleted(updated.id, adminUsers.map(a => a.id)).catch(console.error);
+    if (nextStatusEnum === 'DONE' && updated.assigneeId) {
+      const admins = await prisma.user.findMany({
+        where: { role: Role.ADMIN },
+        select: { id: true },
+      });
+
+      if (admins.length) {
+        await notifyAdminTaskCompleted(
+          updated.id,
+          admins.map((a) => a.id)
+        ).catch(console.error);
       }
     }
 
@@ -953,7 +975,6 @@ export async function assignTask(input: unknown): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem atribuir tarefas
     if (user.role !== Role.ADMIN) {
       return {
         success: false,
@@ -1045,22 +1066,18 @@ export async function completeTask(
   try {
     const user = await getAuthUser();
 
-    // 🔹 Validação correta
     const raw = toPlainObject({ taskId, justification, justificationType });
     const parsed = completeTaskSchema.parse(raw);
 
-    // 🔹 Buscar tarefa
     const currentTask = await ensureTaskAccess(user, parsed.taskId);
 
-    // 🔒 Regra de negócio
-    if (currentTask.assigneeId !== user.id) {
+    if (!canUserCompleteTask(user, currentTask)) {
       return {
         success: false,
-        message: 'Apenas o responsável pode concluir a tarefa.',
+        message: 'Somente o responsável pela tarefa pode marcá-la como concluída.',
       };
     }
 
-    // 🔒 Já concluída
     if (isTaskDone(currentTask.status)) {
       return {
         success: false,
@@ -1074,7 +1091,6 @@ export async function completeTask(
     const cleanJustification = parsed.justification?.trim() || null;
     const normalizedJustificationType = normalizeJustificationType(parsed.justificationType);
 
-    // 🔒 Regra: tarefa atrasada exige justificativa
     if (isLate && !cleanJustification) {
       return {
         success: false,
@@ -1089,7 +1105,6 @@ export async function completeTask(
       };
     }
 
-    // 🚀 Transação
     const updated = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id: currentTask.id },
@@ -1151,22 +1166,18 @@ export async function completeTask(
       return task;
     });
 
-    // 🔔 Notificar admins
-    if (user.role !== Role.ADMIN) {
-      const admins = await prisma.user.findMany({
-        where: { role: Role.ADMIN },
-        select: { id: true },
-      });
+    const admins = await prisma.user.findMany({
+      where: { role: Role.ADMIN },
+      select: { id: true },
+    });
 
-      if (admins.length) {
-        await notifyAdminTaskCompleted(
-          updated.id,
-          admins.map((a) => a.id)
-        ).catch(console.error);
-      }
+    if (admins.length) {
+      await notifyAdminTaskCompleted(
+        updated.id,
+        admins.map((a) => a.id)
+      ).catch(console.error);
     }
 
-    // 🔄 Revalidação
     revalidatePath('/tarefas');
     revalidatePath(`/tarefas/${updated.id}`);
     revalidatePath('/projetos');
@@ -1200,7 +1211,6 @@ export async function createSubtask(parentTaskId: number, input: unknown): Promi
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem criar subtarefas
     if (user.role !== Role.ADMIN) {
       return {
         success: false,
@@ -1240,7 +1250,6 @@ export async function deleteTask(taskId: number): Promise<ActionResult> {
   try {
     const user = await getAuthUser();
 
-    // Apenas administradores podem excluir tarefas
     if (user.role !== Role.ADMIN) {
       return {
         success: false,
