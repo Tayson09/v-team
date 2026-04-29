@@ -17,7 +17,6 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
 
-      console.log("CREDENTIALS:", credentials);  
       if (!credentials?.email || !credentials?.password) {
         return null;
       }
